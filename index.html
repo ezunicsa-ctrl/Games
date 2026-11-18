@@ -3619,6 +3619,31 @@ vehicle('quad', makeAtv(0x4fae5a), 18.5, 26, 0, { vk: 'quad', max: 20, acc: 10, 
 vehicle('bike', makeDirtBike(0xf2c230), 24, 26, 0, { vk: 'cross', max: 25, acc: 13, turn: 2.4, radius: 1.3 });
 vehicle('bike', makeDirtBike(0x3aa0e8), 28, 26, 0, { vk: 'cross', max: 25, acc: 13, turn: 2.4, radius: 1.3 });
 vehicle('heli', makeHeli(), 40, 64, -Math.PI / 2, { vk: 'heli', max: 26, acc: 8, turn: 1.3, radius: 3.5 });
+// more vehicles across the map (the spots are free of walls, water and trees)
+vehicle('bike', makeBike(0xe2453a), -280, 380, 0, { vk: 'bike', max: 28, acc: 12, turn: 2.2, radius: 1.3 });      // beach
+vehicle('bike', makeBike(0x8a5cd6), 6, 350, 0, { vk: 'bike', max: 28, acc: 12, turn: 2.2, radius: 1.3 });         // old town
+vehicle('bike', makeBike(0x4fae5a), 320, 112, 0, { vk: 'bike', max: 28, acc: 12, turn: 2.2, radius: 1.3 });       // supermarket
+vehicle('bike', makeBike(0x2fb6c9), 81, 44, 0, { vk: 'bike', max: 28, acc: 12, turn: 2.2, radius: 1.3 });         // dino park
+vehicle('bike', makeDirtBike(0xe2553f), -14, -50, 0, { vk: 'cross', max: 25, acc: 13, turn: 2.4, radius: 1.3 });  // amusement park
+vehicle('bike', makeDirtBike(0x4fae5a), -480, 300, 0, { vk: 'cross', max: 25, acc: 13, turn: 2.4, radius: 1.3 }); // water park
+vehicle('car', makeCar(0x1f4fa3), 280, 190, 0, { vk: 'car', max: 24, acc: 9, turn: 1.6, radius: 2.4 });          // post office
+vehicle('car', makeCar(0x1f4fa3), 281, -56, 0, { vk: 'car', max: 24, acc: 9, turn: 1.6, radius: 2.4 });          // hospital
+vehicle('car', makeCar(0x2f3b2a, 'suv'), 38, 372, 0, { vk: 'suv', max: 22, acc: 8, turn: 1.4, radius: 2.7 });    // harbour
+vehicle('car', makeCar(0x1f4fa3), 132, 122, 0, { vk: 'car', max: 24, acc: 9, turn: 1.6, radius: 2.4 });          // school
+vehicle('car', makeCar(0x1f4fa3), 30, -60, 0, { vk: 'car', max: 24, acc: 9, turn: 1.6, radius: 2.4 });           // town
+vehicle('quad', makeAtv(0xf2c230), -500, 0, 0, { vk: 'quad', max: 20, acc: 10, turn: 2.0, radius: 1.8 });         // fields
+vehicle('quad', makeAtv(0x2b6fd6), 200, -420, 0, { vk: 'quad', max: 20, acc: 10, turn: 2.0, radius: 1.8 });       // forest
+vehicle('quad', makeAtv(0xf28a1f), -300, -420, 0, { vk: 'quad', max: 20, acc: 10, turn: 2.0, radius: 1.8 });      // mountains
+vehicle('quad', makeAtv(0x8a5cd6), 470, 140, 0, { vk: 'quad', max: 20, acc: 10, turn: 2.0, radius: 1.8 });        // dragon cave
+vehicle('quad', makeAtv(0xe2553f), 0, 270, 0, { vk: 'quad', max: 20, acc: 10, turn: 2.0, radius: 1.8 });          // south
+vehicle('quad', makeAtv(0x4fae5a), -300, 100, 0, { vk: 'quad', max: 20, acc: 10, turn: 2.0, radius: 1.8 });       // west
+// two more helipads, each with a helicopter of a new colour
+[[320, -20, 0x2b6fd6], [-200, 380, 0xf2c230]].forEach(([x, z, c]) => {
+  disc(8, M(0x6c737a, 0.9), x, 0.07, z);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(6.6, 7, 40), M(0xffc23a, 0.6)); ring.rotation.x = -Math.PI / 2; ring.position.set(x, 0.08, z); scene.add(ring);
+  [[-1.4, 0, 0.5, 4], [1.4, 0, 0.5, 4], [0, 0, 2.3, 0.5]].forEach(([dx, dz, w, d]) => flat(w, d, M(0xf4f1e6, 0.6), x + dx, 0.085, z + dz));
+  vehicle('heli', makeHeli(), x, z, -Math.PI / 2, { vk: 'heli', max: 26, acc: 8, turn: 1.3, radius: 3.5, paint: c, spawn: { x, z, h: -Math.PI / 2 } });
+});
 for (let i = 0; i < 7; i++) vehicle('bumper', makeBumper(lunaCols[i % lunaCols.length]), rand(ARENA.x1 + 3, ARENA.x2 - 3), rand(ARENA.z1 + 3, ARENA.z2 - 3), rand(0, 6.28), { vk: 'bumper', max: 7, acc: 8, turn: 2.6, radius: 1.8, ai: { t: 0, ix: 0, iy: 1 } });
 const TR_L = 3.45;
 const trailers = [makeTrailer(0x2b8a8f), makeTrailer(0xd98a1f)];
@@ -4687,6 +4712,19 @@ function drawMap() {
 // ===== player on foot, slides, rides =====
 const GRAV = 26;
 const STAND = () => poseLimbs(player, [0, 0], [0, 0], [0, 0], [0, 0]);
+// First person on a slide: the camera is at the eyes and looks a few metres down the slide. The body is hidden.
+const slideFP = { hid: false, look: new THREE.Vector3() };
+function slideCam(cur, dt) {
+  const on = !cur && !!player.ride;
+  if (on !== slideFP.hid) { player.g.visible = !on; slideFP.hid = on; if (on) slideFP.look.set(NaN, 0, 0); }
+  if (!on) return;
+  const r = player.ride, s = r.s, u = Math.min(r.u, 0.999), P = player.g.position, T = s.curve.getTangentAt(u);
+  const ua = u + 7 / s.len, A = ua < 1 ? s.curve.getPointAt(ua) : s.curve.getPointAt(1).clone().addScaledVector(s.curve.getTangentAt(1), (ua - 1) * s.len);
+  camera.position.set(P.x + T.x * 0.25, P.y + 1.05, P.z + T.z * 0.25);
+  A.y += 0.25;
+  if (isNaN(slideFP.look.x)) slideFP.look.copy(A); else slideFP.look.lerp(A, Math.min(1, 10 * dt));
+  camera.lookAt(slideFP.look);
+}
 function updateSlide(dt) {
   const r = player.ride, s = r.s, T = s.curve.getTangentAt(Math.min(r.u, 0.999));
   r.speed = clamp(r.speed + (4 + 16 * Math.max(0, -T.y)) * dt, 3, 18);
@@ -4760,13 +4798,15 @@ function updateWalker(dt, ix, iy) {
 
 // ===== vehicles =====
 function spinWheels(v, dt) { if (v.parts.mw) { v.parts.mw.forEach(w => w.rotateX(v.speed * dt / 0.36)); return; } v.parts.wheels.forEach(w => { w.rotation.x += v.speed * dt / 0.4; }); v.parts.front.forEach(w => { w.rotation.y = -v.steer * 0.45; }); }
+// The steer value for a stick or key input: no turn for a small push, a soft start, and 70 % of the old turn at full input.
+function driveSteer(ix) { const a = Math.abs(ix); if (a < 0.12) return 0; return Math.sign(ix) * Math.pow((a - 0.12) / 0.88, 1.7) * 0.7; }
 function updateDriven(v, dt, ix, iy) {
   const m = v.parts.mesh, p = m.position, towing = trailers.some(tr => tr.hitchedTo === v), max = v.max * (towing ? 0.7 : 1);
   if (Math.abs(iy) > 0.05) { const braking = Math.sign(iy) !== Math.sign(v.speed) && Math.abs(v.speed) > 0.5; v.speed += iy * (braking ? v.acc * 2.2 : v.acc) * dt; }
   else v.speed *= Math.max(0, 1 - 1.2 * dt);
   v.speed = clamp(v.speed, -max * 0.4, max);
-  v.steer += (ix - v.steer) * Math.min(1, 6 * dt);
-  v.heading -= v.steer * v.turn * dt * clamp(v.speed / 4, -1, 1);
+  v.steer += (driveSteer(ix) - v.steer) * Math.min(1, 4 * dt);
+  v.heading -= v.steer * v.turn * dt * clamp(v.speed / 4, -1, 1) * (v.kind === 'bumper' ? 1 : 1 - 0.45 * clamp(Math.abs(v.speed) / max, 0, 1));
   const f = fwd(v.heading); p.x += f.x * v.speed * dt; p.z += f.z * v.speed * dt;
   if (v.kind === 'bumper') arenaClamp(v);
   else if (pushOut(p, v.kind === 'bike' ? 0.8 : v.kind === 'quad' ? 1.1 : 1.6)) v.speed *= 0.6;
@@ -5164,6 +5204,7 @@ function frame(now) {
   camera.position.lerp(camTarget, Math.min(1, (player.ride || player.onRide ? 8 : 6) * dt));
   coastCamClip(tgt, camera.position, 0);
   camera.lookAt(tgt.x, tgt.y + (cur && cur.kind === 'heli' ? 2 : 1.4), tgt.z);
+  slideCam(cur, dt);
   sun.position.set(tgt.x + SUN_OFF.x, SUN_OFF.y, tgt.z + SUN_OFF.z); sun.target.position.set(tgt.x, 0, tgt.z); sun.target.updateMatrixWorld();
 
   if (running) { updateHud(cur); playTime += dt; if (playTime > BREAK_AFTER) { running = false; pauseLeft = 30; $('pause').hidden = false; } }
@@ -8739,7 +8780,7 @@ function paintCar(holder, col) {
     each((i, b) => { if (Math.min((b - top + 24) % 24, (top - b + 24) % 24) <= 2) { t.copy(col).multiplyScalar(hsl.l / mean); c2.setXYZ(i, t.r, t.g, t.b); } });
   });
 }
-const VEH_PAINT = { car: [0x2b6fd6, 0xf4f1ea, 0xe2453a], suv: [0x3f9a4a] };
+const VEH_PAINT = { car: [0x2b6fd6, 0xf4f1ea, 0xe2453a, 0xf2c230, 0x4fae5a, 0x8a5cd6, 0xf28a1f, 0x2fb6c9], suv: [0x3f9a4a, 0xe2453a] };
 function paintCars() {
   const n = { car: 0, suv: 0 };
   vehicles.forEach(v => {
@@ -8760,7 +8801,7 @@ function dressBike(v) {
 }
 function dressHeli(v) {
   const P_ = v.parts, a = dress(P_.mesh, 'heli', 0, { len: MODELS.heli.len, keep: [P_.tail] }); if (!a) return;
-  vehNode(a, 'paint').material.color.setHex(0xd8402f).convertSRGBToLinear();
+  { const pn = vehNode(a, 'paint'); pn.material = pn.material.clone(); pn.material.color.setHex(v.paint || 0xd8402f).convertSRGBToLinear(); }
   P_.rotor = vehNode(a, 'rotor'); P_.tail.position.set(0.2, 1.75, -3.55); P_.tail.scale.setScalar(0.8);   // the model has no tail rotor
 }
 function dressPlane(v) {
