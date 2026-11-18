@@ -4764,15 +4764,15 @@ function updateWalker(dt, ix, iy) {
   if (l > 0.1) player.heading += angDiff(player.heading, Math.atan2(dx, dz)) * Math.min(1, 12 * dt);
   if ((jumpEdge || hold.up) && player.grounded && g0.type !== 'tramp') { v.y = 8.5; player.grounded = false; }
   v.y -= GRAV * dt;
-  const nx = p.x + v.x * dt, nz = p.z + v.z * dt, gN = groundAt(nx, nz, p.y), need = gateNeeded(nx, nz, gN, g0);
+  const nx = p.x + v.x * dt, nz = p.z + v.z * dt, gN = groundWide(nx, nz, p.y), need = gateNeeded(nx, nz, gN, g0);
   if (need) { v.x = v.z = 0; if (!(player.gateCool > 0)) { player.gateCool = 1.5; gate(need); } }
   else if (gN.h <= p.y + 0.75) { p.x = nx; p.z = nz; } else { v.x *= -0.2; v.z *= -0.2; }
   pushOut(p, 0.4);
   p.y += v.y * dt;
   if (v.y > 0 && blockAt(p.x, p.y + 1.45, p.z)) { p.y -= v.y * dt; v.y = 0; }
-  const g = groundAt(p.x, p.z, p.y);
+  const g = groundWide(p.x, p.z, p.y);
   if (p.y <= g.h) {
-    if (g.type === 'tramp' && v.y < -2) {
+    if (g.type === 'tramp') {
       let up = Math.max(-v.y * 0.92, 12); if (hold.up || jumpEdge) up += 5; v.y = Math.min(up, 27);
       g.d.dip = 1; boing(clamp(v.y / 14, 0.7, 1.6)); player.grounded = false; p.y = g.h; player.onBouncy = false;
     } else if (g.type === 'bouncy') {
@@ -8327,6 +8327,180 @@ function musicTick() {
     const lc = $('loadChip'); if (lc && (playerActor || !THREE.GLTFLoader)) lc.remove();
     if (running && !giftDone) { giftDone = true; const d = new Date().toDateString(); if (SAVE.day && SAVE.day !== d) { star(3); showCard('#gift', mt('gift'), mt('giftX'), 6); } SAVE.day = d; persist(); } }; }
 document.querySelector('.hud .row').insertAdjacentHTML('beforeend', '<div class="chip" id="loadChip">' + ic('hourglass-medium') + ' ' + mt('load') + '</div>');
+// ===== kids: shirts in the shop, the balloon in the hand, ride entry signs, landscape prompt, short hints =====
+
+// ----- shirts -----
+// Each shirt has a front design and a back design on one canvas: the left half is the front, the right half is the back.
+// The back also has the name and the number that the child types. The club shirts use only colours and patterns, with no real crest or name.
+const JS_W = 512, JS_H = 256;
+const jsFill = (c, col, x, y, w, h) => { c.fillStyle = col; c.fillRect(x, y, w, h); };
+const jsV = cols => (c, x, w) => cols.forEach((col, i) => jsFill(c, col, x + i * w / cols.length, 0, w / cols.length + 1, JS_H));
+const jsH = cols => (c, x, w) => cols.forEach((col, i) => jsFill(c, col, x, i * JS_H / cols.length, w, JS_H / cols.length + 1));
+const jsStripes = (a, b, n) => jsV(Array.from({ length: n }, (_, i) => i % 2 ? b : a));
+const jsHoops = (a, b, n) => jsH(Array.from({ length: n }, (_, i) => i % 2 ? b : a));
+const jsChecker = (a, b, n) => (c, x, w) => { const s = w / n; for (let i = 0; i < n; i++) for (let j = 0; j < Math.ceil(JS_H / s); j++) jsFill(c, (i + j) % 2 ? b : a, x + i * s, j * s, s + 1, s + 1); };
+const jsPlain = (col, trim) => (c, x, w) => { jsFill(c, col, x, 0, w, JS_H); if (trim) { jsFill(c, trim, x, 0, w, 22); jsFill(c, trim, x, JS_H - 14, w, 14); } };
+const jsCross = (bg, col) => (c, x, w) => { jsFill(c, bg, x, 0, w, JS_H); jsFill(c, col, x + w * 0.42, 0, w * 0.16, JS_H); jsFill(c, col, x, JS_H * 0.42, w, JS_H * 0.16); };
+const jsBrazil = (c, x, w) => { jsFill(c, '#1f9a3c', x, 0, w, JS_H); c.fillStyle = '#ffd21f'; c.beginPath(); c.moveTo(x + w / 2, 30); c.lineTo(x + w - 20, JS_H / 2); c.lineTo(x + w / 2, JS_H - 30); c.lineTo(x + 20, JS_H / 2); c.fill(); c.fillStyle = '#1f3f9a'; c.beginPath(); c.arc(x + w / 2, JS_H / 2, 46, 0, 6.3); c.fill(); };
+const jsHalves = (a, b) => jsV([a, b]);
+const jsSash = (bg, col) => (c, x, w) => { jsFill(c, bg, x, 0, w, JS_H); c.save(); c.beginPath(); c.rect(x, 0, w, JS_H); c.clip(); c.strokeStyle = col; c.lineWidth = 46; c.beginPath(); c.moveTo(x, 0); c.lineTo(x + w, JS_H); c.stroke(); c.restore(); };
+// [id, names, design, ink of the name and the number]
+const JERSEYS = [
+  ['hr', { hr: 'Hrvatska', en: 'Croatia', de: 'Kroatien' }, jsChecker('#e2231a', '#ffffff', 6), '#1f3f9a'],
+  ['de', { hr: 'Njemačka', en: 'Germany', de: 'Deutschland' }, jsH(['#1c1c1c', '#dd1f26', '#ffce00']), '#ffffff'],
+  ['it', { hr: 'Italija', en: 'Italy', de: 'Italien' }, jsV(['#119a48', '#ffffff', '#ce2b37']), '#1c1c1c'],
+  ['fr', { hr: 'Francuska', en: 'France', de: 'Frankreich' }, jsV(['#1f3f9a', '#ffffff', '#e2231a']), '#1c1c1c'],
+  ['es', { hr: 'Španjolska', en: 'Spain', de: 'Spanien' }, jsH(['#c60b1e', '#ffc400', '#ffc400', '#c60b1e']), '#1c1c1c'],
+  ['br', { hr: 'Brazil', en: 'Brazil', de: 'Brasilien' }, jsBrazil, '#ffffff'],
+  ['ar', { hr: 'Argentina', en: 'Argentina', de: 'Argentinien' }, jsStripes('#75aadb', '#ffffff', 7), '#1c1c1c'],
+  ['en', { hr: 'Engleska', en: 'England', de: 'England' }, jsCross('#ffffff', '#ce1124'), '#1f3f9a'],
+  ['nl', { hr: 'Nizozemska', en: 'Netherlands', de: 'Niederlande' }, jsPlain('#ff7f00', '#1f3f9a'), '#1c1c1c'],
+  ['at', { hr: 'Austrija', en: 'Austria', de: 'Österreich' }, jsH(['#ed2939', '#ffffff', '#ed2939']), '#1c1c1c'],
+  ['c1', { hr: 'Plavi klub', en: 'Blue club', de: 'Blauer Klub' }, jsPlain('#1f4fb4', '#ffffff'), '#ffffff'],
+  ['c2', { hr: 'Bijeli klub', en: 'White club', de: 'Weißer Klub' }, jsPlain('#ffffff', '#1f3f9a'), '#1f3f9a'],
+  ['c3', { hr: 'Crveno-bijele pruge', en: 'Red and white stripes', de: 'Rot-weiße Streifen' }, jsStripes('#e2231a', '#ffffff', 7), '#1c1c1c'],
+  ['c4', { hr: 'Crno-bijele pruge', en: 'Black and white stripes', de: 'Schwarz-weiße Streifen' }, jsStripes('#1c1c1c', '#ffffff', 7), '#e2231a'],
+  ['c5', { hr: 'Plavo-crne pruge', en: 'Blue and black stripes', de: 'Blau-schwarze Streifen' }, jsStripes('#1f4fb4', '#1c1c1c', 7), '#ffffff'],
+  ['c6', { hr: 'Žuto-crni', en: 'Yellow and black', de: 'Gelb-schwarz' }, jsPlain('#ffd21f', '#1c1c1c'), '#1c1c1c'],
+  ['c7', { hr: 'Zeleno-bijeli obruči', en: 'Green and white hoops', de: 'Grün-weiße Ringel' }, jsHoops('#119a48', '#ffffff', 6), '#1c1c1c'],
+  ['c8', { hr: 'Ljubičasti klub', en: 'Purple club', de: 'Lila Klub' }, jsSash('#6a3aa8', '#ffffff'), '#ffffff'],
+  ['c9', { hr: 'Narančasti klub', en: 'Orange club', de: 'Oranger Klub' }, jsSash('#ff7f00', '#1c1c1c'), '#ffffff'],
+  ['c10', { hr: 'Crveno-plave polovice', en: 'Red and blue halves', de: 'Rot-blaue Hälften' }, jsHalves('#e2231a', '#1f3f9a'), '#ffffff']
+];
+const JS_PRICE = 6;
+Object.assign(MT.hr, { jShirts: 'Majice', jFlags: 'Države', jClubs: 'Klubovi', jName: 'Ime na leđima', jNum: 'Broj', jNone: 'Bez majice' });
+Object.assign(MT.en, { jShirts: 'Shirts', jFlags: 'Countries', jClubs: 'Clubs', jName: 'Name on the back', jNum: 'Number', jNone: 'No shirt' });
+Object.assign(MT.de, { jShirts: 'Trikots', jFlags: 'Länder', jClubs: 'Klubs', jName: 'Name auf dem Rücken', jNum: 'Nummer', jNone: 'Kein Trikot' });
+SAVE.jname = typeof SAVE.jname === 'string' ? SAVE.jname : ''; SAVE.jnum = typeof SAVE.jnum === 'string' ? SAVE.jnum : '10';
+function jerseyCanvas(j, back) {
+  const c = document.createElement('canvas'); c.width = JS_W; c.height = JS_H; const x = c.getContext('2d');
+  j[2](x, 0, JS_W / 2); j[2](x, JS_W / 2, JS_W / 2);
+  if (back) {
+    x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = j[3]; x.strokeStyle = j[3] === '#ffffff' ? '#1c1c1c' : '#ffffff'; x.lineJoin = 'round';
+    const cx = JS_W * 0.75, name = SAVE.jname.trim().toUpperCase().slice(0, 12), num = SAVE.jnum.trim().slice(0, 2);
+    if (name) { x.font = '800 ' + Math.min(40, Math.floor(300 / Math.max(4, name.length))) + 'px "Baloo 2", sans-serif'; x.lineWidth = 6; x.strokeText(name, cx, 92); x.fillText(name, cx, 92); }
+    if (num) { x.font = '800 110px "Baloo 2", sans-serif'; x.lineWidth = 9; x.strokeText(num, cx, 180); x.fillText(num, cx, 180); }
+  }
+  return c;
+}
+// A copy of a body material that paints the shirt design. The design is projected flat from the front and from the back,
+// with the coordinates of the model in its rest pose, so it stays on the body while the body moves.
+function jerseyMat(orig, tex, box) {
+  const m = orig.clone(), U = { jTex: { value: tex }, jBox: { value: new THREE.Vector4(box.x0, box.x1, box.y0, box.y1) }, jZ: { value: box.z }, jCut: { value: box.cut } };
+  m.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = 'varying vec3 vJP;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvJP = position;');
+    sh.fragmentShader = 'varying vec3 vJP;\nuniform sampler2D jTex;\nuniform vec4 jBox;\nuniform float jZ;\nuniform float jCut;\n' + sh.fragmentShader.replace('#include <color_fragment>',
+      '#include <color_fragment>\nif (vJP.y > jCut) {\n  float ju = clamp((vJP.x - jBox.x) / (jBox.y - jBox.x), 0.0, 1.0), jv = clamp((vJP.y - jBox.z) / (jBox.w - jBox.z), 0.0, 1.0);\n' +
+      '  vec2 juv = vJP.z > jZ ? vec2(ju * 0.5, jv) : vec2(0.5 + (1.0 - ju) * 0.5, jv);\n  diffuseColor.rgb = pow(texture2D(jTex, juv).rgb, vec3(2.2));\n}');
+  };
+  m.customProgramCacheKey = () => 'jersey';
+  return m;
+}
+// The bounds of the shirt in the rest pose, from the shirt part and the belt of the model.
+function jerseyBox(obj) {
+  const bb = {}, norm = a => !a.normalized ? 1 : a.array instanceof Int16Array ? 32767 : a.array instanceof Uint16Array ? 65535 : a.array instanceof Int8Array ? 127 : a.array instanceof Uint8Array ? 255 : 1;
+  obj.traverse(m => { if (!m.isMesh) return; const a = m.geometry.attributes.position, k = norm(a); m.geometry.computeBoundingBox(); const b = m.geometry.boundingBox.clone(); b.min.divideScalar(k); b.max.divideScalar(k); bb[m.userData.jOrig ? m.userData.jOrig.name : m.material.name] = b; });
+  const s = bb.Shirt, belt = bb.Belt; if (!s) return null;
+  const cut = belt ? belt.max.y : s.min.y;
+  return { x0: s.min.x * 0.75, x1: s.max.x * 0.75, y0: cut, y1: s.max.y, z: (s.min.z + s.max.z) / 2, cut };
+}
+let jerseyTex = null;
+function applyJersey() {
+  const a = playerActor; if (!a) return;
+  const j = JERSEYS.find(q => q[0] === SAVE.shirt), parts = [];
+  a.obj.traverse(m => { if (m.isMesh) { if (!m.userData.jOrig) m.userData.jOrig = m.material; parts.push(m); } });
+  if (jerseyTex) { jerseyTex.dispose(); jerseyTex = null; }
+  const box = j && jerseyBox(a.obj);
+  parts.forEach(m => { const o = m.userData.jOrig; if (m.material !== o) { m.material.dispose(); m.material = o; } });
+  if (!box) return;
+  jerseyTex = new THREE.CanvasTexture(jerseyCanvas(j, true)); jerseyTex.anisotropy = 4;
+  parts.forEach(m => { const n = m.userData.jOrig.name; if (n === 'Shirt' || n === 'Black') m.material = jerseyMat(m.userData.jOrig, jerseyTex, box); });
+}
+{ const f = dressPlayer; dressPlayer = function () { f(); applyJersey(); }; }
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (SAVE.shirt) applyJersey(); });
+function jerseyHtml() {
+  const own = id => SAVE.own.indexOf('j:' + id) >= 0;
+  const btn = j => { const c = jerseyCanvas(j, false), p = document.createElement('canvas'); p.width = 64; p.height = 64; p.getContext('2d').drawImage(c, 0, 0, JS_W / 2, JS_H, 0, 8, 64, 48);
+    return '<button type="button" data-shirt="' + j[0] + '" title="' + j[1][LANG] + '"' + (SAVE.shirt === j[0] ? ' class="sel"' : '') + '><img alt="' + j[1][LANG] + '" src="' + p.toDataURL() + '"><small>' + (own(j[0]) ? (SAVE.shirt === j[0] ? ic('check') : '·') : ic('star') + ' ' + JS_PRICE) + '</small></button>'; };
+  const esc = s => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  return '<p class="lbl">' + mt('jShirts') + ' · ' + mt('jFlags') + '</p><div class="pick jshop">' + JERSEYS.slice(0, 10).map(btn).join('') + '</div>'
+    + '<p class="lbl">' + mt('jShirts') + ' · ' + mt('jClubs') + '</p><div class="pick jshop">' + JERSEYS.slice(10).map(btn).join('') + '</div>'
+    + '<div class="jcustom"><label>' + mt('jName') + '<input id="jName" maxlength="12" autocomplete="off" value="' + esc(SAVE.jname) + '"></label>'
+    + '<label>' + mt('jNum') + '<input id="jNum" maxlength="2" inputmode="numeric" autocomplete="off" value="' + esc(SAVE.jnum) + '"></label>'
+    + '<button type="button" class="cta ghost" data-shirt="">' + mt('jNone') + '</button></div>';
+}
+metaCss.textContent += '.pick.jshop{grid-template-columns:repeat(5,1fr)}.pick.jshop button{padding:4px 0 6px;line-height:1.1}.pick.jshop img{display:block;width:44px;height:44px;margin:0 auto;border-radius:8px}'
+  + '.pick.jshop small{display:block;font-size:12px;font-weight:800;color:var(--sun)}.pick.jshop .sel small{color:var(--sunInk)}'
+  + '.jcustom{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin:10px 0}.jcustom label{display:flex;flex-direction:column;gap:4px;font-weight:700;font-size:13px}'
+  + '.jcustom input{font:inherit;font-size:18px;padding:8px 10px;border-radius:12px;border:2px solid var(--line);width:150px;box-sizing:border-box}#jNum{width:70px}.jcustom .cta{padding:8px 14px;font-size:15px}';
+{ const f = openTasks; openTasks = function () { f(); const s = $('metaCard').querySelector('.pick.shop'); if (s) s.insertAdjacentHTML('afterend', jerseyHtml()); }; }
+$('metaCard').addEventListener('click', e => {
+  const b = e.target.closest('button[data-shirt]'); if (!b) return; const id = b.dataset.shirt;
+  if (id && SAVE.own.indexOf('j:' + id) < 0) { if (SAVE.stars < JS_PRICE) { tone('sine', 200, 150, 0.12, 0.04); return; } SAVE.stars -= JS_PRICE; $('starN').textContent = SAVE.stars; SAVE.own.push('j:' + id); SAVE.shirt = id; ding(); }
+  else SAVE.shirt = id && SAVE.shirt !== id ? id : null;
+  persist(); applyJersey(); openTasks();
+});
+$('metaCard').addEventListener('input', e => {
+  if (e.target.id === 'jName') SAVE.jname = e.target.value.slice(0, 12);
+  else if (e.target.id === 'jNum') { e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 2); SAVE.jnum = e.target.value; }
+  else return;
+  persist(); applyJersey();
+});
+
+// ----- the balloon is in the right hand -----
+{ const f = wearItem; wearItem = function () {
+  f(); const a = playerActor; if (!a || !a.acc || SAVE.wear !== 'balloon') return;
+  let hand = null; a.obj.traverse(o => { if (o.isBone && o.name.replace('.', '') === 'FistR') hand = o; });
+  if (!hand) return;
+  const [ball, str] = a.acc.grp.children; ball.position.set(0, 1.55, 0); str.position.set(0, 0.75, 0); str.scale.set(2.2, 1, 2.2);
+  a.acc.hand = hand;
+}; }
+{ const f = placeAcc; placeAcc = function (dt) {
+  const a = playerActor; if (!a || !a.acc || !a.acc.hand) { f(dt); return; }
+  a.acc.hand.getWorldPosition(_mv); a.holder.worldToLocal(_mv); const g = a.acc.grp; g.position.copy(_mv);
+  g.rotation.set(Math.sin(clock * 1.3) * 0.08, 0, Math.sin(clock * 1.1 + 1) * 0.1);
+}; }
+
+// ----- the body does not go into a bouncy castle: the ground under the child is the highest bouncy point under the body -----
+function groundWide(x, z, y) {
+  let g = groundAt(x, z, y);
+  for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, q = groundAt(x + Math.cos(a) * 0.42, z + Math.sin(a) * 0.42, y); if (q.type === 'bouncy' && q.h > g.h) g = q; }
+  return g;
+}
+
+// ----- an ENTRY sign over the entry of each ride -----
+{ const word = () => ({ hr: 'ULAZ', en: 'ENTRY', de: 'EINGANG' })[LANG] || 'ULAZ';
+  rides.forEach(r => { if (!r.entry) return; sign(word, '#2f9a5a', r.entry.x, 4.2, r.entry.z, 0.34); entryMarker(r.entry.x, r.entry.z, 0x3fd36a).scale.setScalar(1.25); }); }
+
+// ----- landscape: on a phone the game asks to turn the phone; the play button tries to lock the screen in landscape -----
+const kidsTouch = matchMedia('(pointer:coarse)').matches;
+Object.assign(MT.hr, { rot: 'Okreni mobitel' }); Object.assign(MT.en, { rot: 'Turn your phone' }); Object.assign(MT.de, { rot: 'Dreh dein Handy' });
+document.body.insertAdjacentHTML('beforeend', '<div id="rotate" hidden><svg viewBox="0 0 120 120" width="120" height="120" aria-hidden="true"><rect x="38" y="14" width="44" height="80" rx="8" fill="none" stroke="currentColor" stroke-width="6"/>'
+  + '<path d="M24 98a44 44 0 0 0 52 8" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M70 96l8 10-12 4" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg><p></p></div>');
+metaCss.textContent += '#rotate{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:var(--sun,#ffc23a);color:#22313c;font-family:"Baloo 2",sans-serif;font-size:28px;font-weight:800;text-align:center}#rotate[hidden]{display:none}'
+  + '#rotate svg{animation:rotPhone 1.8s ease-in-out infinite}@keyframes rotPhone{0%,20%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}';
+$('play').addEventListener('click', () => {
+  if (!kidsTouch) return;
+  const el = document.documentElement, fs = el.requestFullscreen || el.webkitRequestFullscreen;
+  try { const p = fs && fs.call(el); const lock = () => { try { const q = screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape'); if (q && q.catch) q.catch(() => {}); } catch (_) {} }; if (p && p.then) p.then(lock, lock); else lock(); } catch (_) {}
+});
+function kidsRotate() {
+  const el = $('rotate'), show = kidsTouch && innerHeight > innerWidth && $('start').hidden && $('setup').hidden;
+  if (show) el.querySelector('p').textContent = mt('rot');
+  if (el.hidden === show) el.hidden = !show;
+}
+addEventListener('resize', kidsRotate); addEventListener('orientationchange', kidsRotate);
+
+// ----- less text: a hint stays for 6 seconds after it changes, then it fades out -----
+metaCss.textContent += '.hud #hint{transition:opacity .6s}.hud #hint.fade{opacity:0;pointer-events:none}';
+const kidsHint = { txt: '', t: 0 };
+onFrame.push(dt => {
+  kidsRotate();
+  const h = ui.hint, s = h.textContent;
+  if (s !== kidsHint.txt) { kidsHint.txt = s; kidsHint.t = 0; h.classList.remove('fade'); }
+  else if ((kidsHint.t += dt) > 6) h.classList.add('fade');
+});
 // ===== zoo animals made for this project by tools/zoo.py =====
 // kind: height in metres in the zoo. The model file has the name of the kind.
 const ZOO_OWN = { giraffe: 5.3, kangaroo: 1.9, flamingo: 1.6, parrot: 0.5, koala: 1.1, meerkat: 0.6 };
