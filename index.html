@@ -3362,7 +3362,8 @@ function updateDinos(dt) {
   dinos.forEach(d => {
     if (Math.abs(d.x - cp.x) > 150 || Math.abs(d.z - cp.z) > 150) return;
     d.phase += dt; const u = d.g.userData, p = d.g.position; let moving = false;
-    if (d.speed > 0) {
+    if (d === DR.d) moving = dinoStep(d, dt);
+    else if (d.speed > 0) {
       const dp = Math.hypot(pp.x - p.x, pp.z - p.z);
       if (!player.inV && dp < d.reach * 0.8) { d.g.rotation.y += angDiff(d.g.rotation.y, Math.atan2(pp.x - p.x, pp.z - p.z)) * Math.min(1, 1.5 * dt); d.target = null; }
       else if (d.wait > 0) d.wait -= dt;
@@ -3382,7 +3383,7 @@ function updateDinos(dt) {
     if (u.biped) p.y = moving ? Math.abs(Math.sin(d.walkP)) * 0.1 * d.s : p.y * 0.9;
     if (u.tail) u.tail.rotation.y = Math.sin(d.phase * (moving ? 2 : 0.9)) * (moving ? 0.22 : 0.16);
     if (u.head) { u.head.rotation.y = Math.sin(d.phase * 0.4) * 0.3; u.head.rotation.x = Math.sin(d.phase * 0.7) * 0.07; }
-    if (!player.inV && pp.y < 3) { const dx = pp.x - p.x, dz = pp.z - p.z, dd = Math.hypot(dx, dz); if (dd < d.bodyR && dd > 0.01) { pp.x = p.x + dx / dd * d.bodyR; pp.z = p.z + dz / dd * d.bodyR; } }
+    if (!player.inV && !DR.d && pp.y < 3) { const dx = pp.x - p.x, dz = pp.z - p.z, dd = Math.hypot(dx, dz); if (dd < d.bodyR && dd > 0.01) { pp.x = p.x + dx / dd * d.bodyR; pp.z = p.z + dz / dd * d.bodyR; } }
   });
   flyers.forEach(f => {
     f.a += dt * f.w; const ca = Math.cos(f.a), sa = Math.sin(f.a);
@@ -4537,7 +4538,7 @@ function eff() { return clamp(AGE + Math.floor(lesson.medals[lesson.subj] / 2), 
 function numAnswers(ans, n, min = 0) { const s = new Set([ans]); let k = 0; while (s.size < n && k++ < 60) { const c = ans + ri(-3, 3); if (c >= min) s.add(c); } for (let j = 1; s.size < n; j++) s.add(ans + 3 + j); return shuffle([...s]).map(v => ({ html: v, val: v })); }
 const GEN = {
   math(e) {
-    if (e <= 4) { const n = ri(1, e === 3 ? 3 : 6); return { text: t('qCount'), vis: dots(n), ans: numAnswers(n, 3, 1), correct: n, hint: t('hCount') }; }
+    if (e <= 4) { const n = ri(1, e === 3 ? 5 : 7); return { text: t('qCount'), vis: dots(n), ans: numAnswers(n, 3, 1), correct: n, hint: t('hCount') }; }
     if (e === 5) { const a = ri(1, 3), b = ri(1, 5 - a); return { text: t('qAdd', { a, b }), vis: `<span class="word">${a} + ${b} = ?</span>`, ans: numAnswers(a + b, 3, 1), correct: a + b, hint: t('hAdd', { a, b }) }; }
     const max = e === 6 ? 10 : e === 7 ? 20 : 50, op = Math.random() < 0.5 ? '+' : '-';
     let a, b; if (op === '+') { a = ri(1, max - 1); b = ri(1, max - a); } else { a = ri(2, max); b = ri(1, a); }
@@ -4758,10 +4759,10 @@ function updateWalker(dt, ix, iy) {
   if (player.gateCool > 0) player.gateCool -= dt;
   if (pass.build && !(p.x > PLOT.x1 - 14 && p.x < PLOT.x2 + 14 && p.z > PLOT.z1 - 14 && p.z < PLOT.z2 + 14)) pass.build = false;
   if (pass.bounce && !inZone(p.x, p.z, ZONES.bounce, 14)) pass.bounce = false;
-  const speed = (g0.type === 'water' ? 3.5 : 6.8) * collideSlow(p) * (Math.hypot(ix, iy) > 0.95 ? 1.3 : 1);
-  const k = player.grounded ? 14 : (player.onBouncy ? 8 : 3);
+  const speed = (g0.type === 'water' ? 3 : 5) * collideSlow(p) * (Math.hypot(ix, iy) > 0.95 ? 1.2 : 1);
+  const k = player.grounded ? 6 : (player.onBouncy ? 8 : 3);
   v.x += (dx * speed - v.x) * Math.min(1, k * dt); v.z += (dz * speed - v.z) * Math.min(1, k * dt);
-  if (l > 0.1) player.heading += angDiff(player.heading, Math.atan2(dx, dz)) * Math.min(1, 12 * dt);
+  if (l > 0.1) player.heading += angDiff(player.heading, Math.atan2(dx, dz)) * Math.min(1, 6 * dt);
   if ((jumpEdge || hold.up) && player.grounded && g0.type !== 'tramp') { v.y = 8.5; player.grounded = false; }
   v.y -= GRAV * dt;
   const nx = p.x + v.x * dt, nz = p.z + v.z * dt, gN = groundWide(nx, nz, p.y), need = gateNeeded(nx, nz, gN, g0);
@@ -4786,7 +4787,7 @@ function updateWalker(dt, ix, iy) {
     p.x = g.d.x + rx * Math.cos(th) + rz * Math.sin(th); p.z = g.d.z - rx * Math.sin(th) + rz * Math.cos(th); player.heading += th;
   }
   if (player.rideCool > 0) player.rideCool -= dt;
-  else for (const s of slides) if (Math.abs(p.y - s.entry.y) < 1.2 && Math.hypot(p.x - s.entry.x, p.z - s.entry.z) < 1.6) { const go = () => { player.ride = { s, u: 0, speed: 3 }; tone('sine', 500, 900, 0.3, 0.08); }; if (pass.bounce && inZone(p.x, p.z, ZONES.bounce)) go(); else { player.rideCool = 3; gate(go); } break; }
+  else for (const s of slides) if (Math.abs(p.y - s.entry.y) < 1.2 && Math.hypot(p.x - s.entry.x, p.z - s.entry.z) < 2.4) { const go = () => { player.ride = { s, u: 0, speed: 3 }; tone('sine', 500, 900, 0.3, 0.08); }; if (pass.bounce && inZone(p.x, p.z, ZONES.bounce)) go(); else { player.rideCool = 3; gate(go); } break; }
   player.g.rotation.set(0, player.heading, 0);
   const sp = Math.hypot(v.x, v.z);
   if (!player.grounded) poseLimbs(player, [-0.6, 0.3], [0.8, 0.3], [-2.6, -2.6], [-0.2, -0.2]);
@@ -5121,14 +5122,15 @@ function frame(now) {
   const hU = hold.up; hold.up = hold.up || (running && !!keys.Space);
   const v0 = player.inV;
   if (running && act.act) {
-    if (v0) exitVehicle();
+    if (DR.d) dinoOff();
+    else if (v0) exitVehicle();
     else if (player.onRide) { if (!player.onRide.locked) leaveRide(); }
     else if (!player.ride) {
       const nv = nearestVehicle(), nr = nearestRide(), na = nearestAnimal(), nb = nearestBoard(), nd = nearestDino(), np = nearestPet(true), fp = nearestPet(false);
       const togglePet = q => { q.follow = !q.follow; if (!q.follow) { q.home = { x: q.g.position.x, z: q.g.position.z }; q.target = null; } petSound(q.kind); };
       if (np && !(nv && nv.kind !== 'horse')) togglePet(np);
       else if (nv) gate(() => enter(nv));
-      else if (nd) dinoFact(nd);
+      else if (nd) dinoAct(nd);
       else if (nr) { if (nr.free) boardRide(nr); else gate(() => boardRide(nr)); }
       else if (nearSchool()) openSubjects();
       else if (na) { na.hop = 1; burstHearts({ x: na.g.position.x, y: HEAD[na.kind], z: na.g.position.z }); discover(na.kind); boing(1.3); }
@@ -5168,7 +5170,7 @@ function frame(now) {
   } else if (cur && cur.parts.rider) {
     seatRider(cur);
   } else if (!cur && player.onRide) updateOnRide();
-  else if (!cur && running) { if (player.ride) updateSlide(dt); else updateWalker(dt, ix, iy); }
+  else if (!cur && running) { if (DR.d) { DR.ix = ix; DR.iy = iy; dinoSeat(); } else if (player.ride) updateSlide(dt); else updateWalker(dt, ix, iy); }
   jumpEdge = false; hold.up = hU;
 
   updateAnimals(dt); updateNPCs(dt); updateKids(dt); updateDinos(dt); updatePets(dt); updateActors(dt); for (const f of onFrame) f(dt, clock);
@@ -5193,9 +5195,9 @@ function frame(now) {
   let tgt, head, dist, hgt;
   if (cur) { tgt = cur.parts.mesh.position; head = cur.heading; dist = cur.kind === 'heli' ? (cur.parts.jetpack ? 8 : 18) : cur.kind === 'bike' || cur.kind === 'quad' ? 7.5 : cur.kind === 'bumper' ? 7 : 11; hgt = cur.kind === 'heli' ? 6 : 3.6; if (cur.kind === 'plane') { dist = 22; hgt = 6.5; } if (cur.kind === 'horse') { dist = 8; hgt = 3.4; } if (cur.kind === 'digger') { dist = 13; hgt = 5; } if (trailers.some(tr => tr.hitchedTo === cur)) { dist = 16; hgt = 6; } }
   else if (player.onRide) { tgt = player.g.position; head = player.heading; dist = 0; hgt = 0; }
-  else { tgt = player.g.position; head = player.heading; dist = player.ride ? 8 : 5.6; hgt = player.ride ? 3.5 : 2.5; }
-  const moving = cur ? Math.abs(cur.speed) > 1 : (player.ride || Math.hypot(player.vel.x, player.vel.z) > 1);
-  if (clock - lastDrag > 1.5 && moving) camYaw += angDiff(camYaw, head) * Math.min(1, (cur || player.ride ? 2.8 : 1.2) * dt);
+  else { tgt = player.g.position; head = player.heading; dist = DR.d ? 7 + DR.h * 0.8 : player.ride ? 8 : 5.6; hgt = DR.d ? 2 + DR.h * 0.35 : player.ride ? 3.5 : 2.5; }
+  const moving = cur ? Math.abs(cur.speed) > 1 : (player.ride || (DR.d && Math.abs(DR.speed) > 0.5) || Math.hypot(player.vel.x, player.vel.z) > 1);
+  if (clock - lastDrag > 1.5 && moving && (cur || player.ride || DR.d || walkFollow())) camYaw += angDiff(camYaw, head) * Math.min(1, (cur || player.ride ? 2.8 : 1.2) * dt);
   if (!running && (!$('start').hidden || !$('setup').hidden)) camYaw += dt * 0.08;
   const cf = fwd(camYaw);
   if (player.onRide && !cur) { const c = player.onRide.cam; camTarget.set(c.x, c.y, c.z); }
@@ -8008,7 +8010,7 @@ function updateActors(dt) {
     if (st === 'walk' && rate) rate = clamp(a.sp / a.pace, 0.5, 2.4);
     a.mixer.update(dt * rate);
     if (a === playerActor && a.hips.length) {   // seated: lift the model so its hips rest on the seat instead of sinking into it
-      const seated = player.onRide || player.ride || (player.inV && player.inV.parts.rider && !player.inV.parts.stand);
+      const seated = player.onRide || player.ride || DR.d || (player.inV && player.inV.parts.rider && !player.inV.parts.stand);
       if (seated) { let hy = 0; a.hips.forEach(b => { hy += b.getWorldPosition(_mv).y; }); hy /= a.hips.length; a.lift = clamp(a.lift + (a.g.getWorldPosition(_mv).y + (player.ride ? 0.3 : player.inV ? 0.82 : 0.76) - hy), -0.3, 1.2); } else a.lift = 0;
       a.holder.position.y = a.lift / a.g.scale.y;
     }
@@ -8029,7 +8031,7 @@ function dressPlayer() {
   if (playerActor) { player.g.remove(playerActor.holder); const i = actors.indexOf(playerActor); if (i >= 0) actors.splice(i, 1); playerActor = null; }
   const c = CHARS[charSel];
   playerActor = dress(player.g, c.m, 1.45, { gs: player.g.scale.x, keep: [medalMesh], pace: 3.2, pal: c.pal,
-    state: a => player.onRide || player.ride || (player.inV && player.inV.parts.rider && !player.inV.parts.stand) ? 'sit' : !player.grounded ? 'jump' : a.sp > 7.5 ? 'run' : a.sp > 0.3 ? 'walk' : 'idle' });
+    state: a => player.onRide || player.ride || DR.d || (player.inV && player.inV.parts.rider && !player.inV.parts.stand) ? 'sit' : !player.grounded ? 'jump' : a.sp > 7.5 ? 'run' : a.sp > 0.3 ? 'walk' : 'idle' });
 }
 // kind: [model, height in metres, tint, factor for the walk pace]
 const ZOO_M = { zebra: ['zebra', 2.2], tortoise: ['turtle', 0.8], wolf: ['wolf', 1.25], hippo: ['hippo', 2], tiger: ['tiger', 1.6], lion: ['lion', 1.8],
@@ -8852,6 +8854,206 @@ metaCss.textContent += '.shopcard{max-width:min(760px,96vw)!important}.stabs{dis
   + '.snm{font-size:12px;font-weight:800;text-align:center;line-height:1.1;min-height:2.2em;display:flex;align-items:center}.sitem small{font-size:13px;font-weight:800}.sitem .pr{color:#c98a00}.sitem .own{color:#2f9a5a}'
   + '.sitem.lock .spic{filter:saturate(.85)}.shopgo{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin:10px 0}'
   + '.ndots{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;max-width:90px;margin:0 auto 4px}.ndots i{width:12px;height:12px;border-radius:50%;background:#ff6b4a;display:block}';
+// ===== kids2: easier slides, a calmer walk and camera, and school tasks that do not repeat =====
+
+// ----- a slide button: near the foot of a slide tower the child can start the slide with one press -----
+Object.assign(MT.hr, { slideGo: 'Tobogan' }); Object.assign(MT.en, { slideGo: 'Slide' }); Object.assign(MT.de, { slideGo: 'Rutschen' });
+document.body.insertAdjacentHTML('beforeend', '<button type="button" id="slideGo" hidden><svg viewBox="0 0 64 64" width="34" height="34" aria-hidden="true">'
+  + '<path d="M10 14h10v8c8 0 12 6 16 14s10 14 20 14v6c-14 0-20-8-25-16S24 28 20 28v28h-6V14z" fill="#fff"/><circle cx="20" cy="9" r="5" fill="#fff"/></svg><span></span></button>');
+metaCss.textContent += '#slideGo{position:fixed;z-index:6;right:var(--edge-r,16px);bottom:calc(var(--edge-b,16px) + 2 * var(--b,64px) + 34px);display:flex;align-items:center;gap:8px;'
+  + 'padding:10px 18px 10px 12px;border:0;border-radius:999px;background:#ff6b4a;color:#fff;font-family:"Baloo 2",sans-serif;font-weight:800;font-size:22px;box-shadow:0 5px 0 #c94a2e,0 8px 16px rgba(0,0,0,.25);cursor:pointer;animation:slidePulse 1.4s ease-in-out infinite}'
+  + '#slideGo[hidden]{display:none}@keyframes slidePulse{50%{transform:scale(1.07)}}';
+let slideNear = null;
+// Each stairs of a tower goes to the slide at the top of that tower: the nearest slide top at the height of the stairs.
+let slideStairs = null;
+function stairsSlides() {
+  return stairsList.map(st => { let s0 = null, bd = 50; slides.forEach(s => { const d = Math.hypot(st.x - s.entry.x, st.z - s.entry.z); if (d < bd && Math.abs(s.entry.y - st.H) < 4) { s0 = s; bd = d; } }); return s0 && { st, s: s0 }; }).filter(Boolean);
+}
+function nearSlide() {
+  const p = player.g.position; let best = null, bd = 14;
+  // near the top of a slide, on the ground under it or on the deck of its tower
+  for (const s of slides) { const d = Math.hypot(p.x - s.entry.x, p.z - s.entry.z); if (d < bd && s.entry.y - p.y > 1.2) { best = s; bd = d; } }
+  if (best) return best;
+  // at the stairs of a tower, from the foot to the top
+  if (!slideStairs) slideStairs = stairsSlides();
+  for (const { st, s } of slideStairs) if (Math.hypot(p.x - st.x, p.z - st.z) < st.len / 2 + 5 && s.entry.y - p.y > 1.2) return s;
+  return null;
+}
+function slideStart(s) {
+  const go = () => { const e = s.entry; player.g.position.set(e.x, e.y, e.z); player.vel.set(0, 0, 0); player.ride = { s, u: 0, speed: 3 }; tone('sine', 500, 900, 0.3, 0.08); };
+  if (pass.bounce && inZone(s.entry.x, s.entry.z, ZONES.bounce)) go(); else { player.rideCool = 3; gate(go); }
+}
+$('slideGo').addEventListener('click', () => { if (slideNear && running && !player.inV && !player.ride) slideStart(slideNear); });
+onFrame.push(() => {
+  const free = running && !player.inV && !player.ride && !player.onRide;
+  slideNear = free ? nearSlide() : null;
+  const b = $('slideGo'), show = !!slideNear;
+  if (show) b.querySelector('span').textContent = mt('slideGo');
+  if (b.hidden === show) b.hidden = !show;
+});
+
+// ----- the camera on foot turns after the child only when the stick points forward -----
+// A push to the side turns the child, but the camera stays, so the stick keeps its meaning.
+function walkFollow() {
+  const x = joy.x + (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0), y = joy.y + (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
+  return y > 0.3 && Math.abs(x) < 0.45;
+}
+
+// ----- school tasks: a new task is not one of the last 3 tasks of the same subject -----
+// Two tasks are the same when they ask the same thing and have the same right answer.
+const taskSeen = {};
+Object.keys(GEN).forEach(k => { const f = GEN[k]; GEN[k] = function (e) {
+  const seen = taskSeen[k] || (taskSeen[k] = []); let q, key;
+  for (let i = 0; i < 25; i++) { q = f(e); key = q.text + '|' + String(q.correct); if (seen.indexOf(key) < 0) break; }
+  seen.push(key); if (seen.length > 3) seen.shift();
+  return q;
+}; });
+// ===== kids3: ride a dinosaur after 3 facts, a better monster truck and jet ski =====
+
+// ----- dinosaur ride -----
+// Each fact about a kind of dinosaur counts. After 3 facts about a kind, the child can ride each dinosaur of that kind.
+// The ridden dinosaur follows the stick: forward and back give the speed, left and right turn it.
+const DR = { d: null, speed: 0, ix: 0, iy: 0, h: 0, seatY: 0 };
+const DINO_SEAT = { trex: 0.5, raptor: 0.55, parasaur: 0.5, triceratops: 0.72, stego: 0.6, brachio: 0.48, spino: 0.45, ankylo: 0.8, pachy: 0.55 };
+Object.assign(MT.hr, { dRideOk: 'Sad ga možeš jahati!', dRideX: 'Priđi mu i pritisni Jahaj.', dRiding: 'Jašeš', dLeft: 'Još {n} pa ga možeš jahati' });
+Object.assign(MT.en, { dRideOk: 'Now you can ride it!', dRideX: 'Go near and press Ride.', dRiding: 'Riding', dLeft: '{n} more, then you can ride it' });
+Object.assign(MT.de, { dRideOk: 'Jetzt kannst du reiten!', dRideX: 'Geh hin und drück Reiten.', dRiding: 'Du reitest', dLeft: 'Noch {n}, dann kannst du reiten' });
+SAVE.dinoF = SAVE.dinoF || {};
+const dinoCanRide = kind => kind !== 'ptera' && (SAVE.dinoF[kind] || 0) >= 3;
+{ const f = dinoFact; dinoFact = function (kind) {
+  f(kind); if (kind === 'ptera') return;
+  const n = SAVE.dinoF[kind] = Math.min(3, (SAVE.dinoF[kind] || 0) + 1); persist();
+  if (n === 3) setTimeout(() => { showCard('Dino', mt('dRideOk'), mt('dRideX'), 6); say(mt('dRideOk')); ding(); }, 5500);
+}; }
+// the nearest dinosaur object (not only its kind)
+function nearestDinoObj() { const p = player.g.position; let best = null, bd = 1e9; dinos.forEach(d => { const dd = Math.hypot(p.x - d.x, p.z - d.z); if (dd < d.reach && dd < bd) { best = d; bd = dd; } }); return best; }
+// The height of the body from the bones of the model, or from the mesh when the model is not loaded.
+function dinoHeight(d) {
+  d.g.updateMatrixWorld(true); const bb = new THREE.Box3(); let n = 0;
+  d.g.traverse(o => { if (o.isBone && o.visible !== false) { n++; bb.expandByPoint(o.getWorldPosition(new THREE.Vector3())); } });
+  if (n < 3) bb.setFromObject(d.g);
+  return Math.max(1, bb.max.y - d.g.position.y);
+}
+// The height of the top of the back: the highest bone of the spine near the middle of the body, and the thickness of the body above it.
+function dinoBack(d) {
+  d.g.updateMatrixWorld(true); const c = d.g.position, w = new THREE.Vector3(); let y = 0;
+  d.g.traverse(o => { if (o.isBone && /^(back|hips|torso|spine\d?)$/i.test(o.name)) { o.getWorldPosition(w); if (Math.hypot(w.x - c.x, w.z - c.z) < 1.5 * d.s + 0.6) y = Math.max(y, w.y - c.y); } });
+  return y ? y * 1.17 : 0;
+}
+function dinoAct(kind) {
+  const d = nearestDinoObj();
+  if (d && dinoCanRide(d.kind)) dinoOn(d); else dinoFact(kind);
+}
+function dinoOn(d) {
+  DR.d = d; DR.speed = 0; DR.h = dinoHeight(d); DR.seatY = dinoBack(d) || DR.h * (DINO_SEAT[d.kind] || 0.55);
+  d.target = null; player.vel.set(0, 0, 0); camYaw = d.g.rotation.y; ding(); mbump('horse');
+}
+function dinoOff() {
+  const d = DR.d; DR.d = null; if (!d) return;
+  const h = d.g.rotation.y, side = d.bodyR + 1.2, p = player.g.position;
+  p.set(d.g.position.x + Math.cos(h) * side, 0, d.g.position.z - Math.sin(h) * side); pushOut(p, 0.45);
+  player.g.rotation.set(0, h, 0); player.heading = h; STAND(); d.hx = d.g.position.x; d.hz = d.g.position.z; d.wait = 3;
+}
+// One step of the ridden dinosaur. It returns true while it moves.
+function dinoStep(d, dt) {
+  const p = d.g.position, max = clamp((d.speed || 1) * 3, 3, 7), iy = DR.iy, ix = DR.ix;
+  const tgt = iy > 0.1 ? iy * max : iy < -0.1 ? iy * 1.5 : 0;
+  DR.speed += (tgt - DR.speed) * Math.min(1, 1.5 * dt);
+  d.g.rotation.y -= driveSteer(ix) * 1.6 * dt;
+  const h = d.g.rotation.y; p.x += Math.sin(h) * DR.speed * dt; p.z += Math.cos(h) * DR.speed * dt;
+  if (pushOut(p, Math.max(0.8, d.bodyR * 0.6))) DR.speed *= 0.5;
+  return Math.abs(DR.speed) > 0.2;
+}
+function dinoSeat() {
+  const d = DR.d, g = d.g, h = g.rotation.y;
+  player.g.position.set(g.position.x, g.position.y + DR.seatY - 0.5, g.position.z);
+  player.g.rotation.set(0, h, 0); player.heading = h; SIT(player);
+}
+{ const f = updateHud; updateHud = function (cur) {
+  f(cur); if (cur || player.ride || player.onRide) return;
+  if (DR.d) { setText(ui.mode, mt('dRiding') + ' · ' + dName(DR.d.kind)); setHidden(ui.act, false); setBtn(ui.act, 'hand-waving', t('dismount')); setText(ui.hint, ''); return; }
+  const d = nearestDinoObj(); if (!d || d.kind === 'ptera') return;
+  if (dinoCanRide(d.kind)) { setHidden(ui.act, false); setBtn(ui.act, 'bone', t('rideA')); }
+  else setText(ui.hint, mt('dLeft', { n: 3 - (SAVE.dinoF[d.kind] || 0) }));
+}; }
+{ const f = travel; travel = function (x, z, yaw) { if (DR.d) dinoOff(); return f(x, z, yaw); }; }
+
+// ----- a better monster truck -----
+// The materials are made at the first call: the jet skis are made at the load, before this part of the script runs.
+function mtMats() { return mtMats.c || (mtMats.c = { rub: M(0x1a1c1f, 0.92), dark: M(0x23272c, 0.6), chr: M(0xd5dbe0, 0.2, 0.9) }); }
+// A big knobby tyre with a chrome rim. The group turns on its x axis.
+function mtWheel(g, x, y, z) {
+  const { rub: MT_RUB, dark: MT_DARK, chr: MT_CHR } = mtMats();
+  const w = new THREE.Group(); w.position.set(x, y, z); w.rotation.order = 'YXZ'; g.add(w);
+  const tire = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.82, 32), MT_RUB); tire.rotation.z = Math.PI / 2; add(tire, w);
+  for (let i = 0; i < 22; i++) { const a = i / 22 * Math.PI * 2, k = box(0.9, 0.14, 0.24, MT_RUB, (i % 2 ? 0.12 : -0.12), Math.cos(a) * 1.0, Math.sin(a) * 1.0, w); k.rotation.x = -a; }
+  const rim = cyl(0.56, 0.56, 0.86, MT_CHR, 0, 0, 0, w, 24); rim.rotation.z = Math.PI / 2;
+  const hub = cyl(0.2, 0.2, 0.9, MT_DARK, 0, 0, 0, w, 12); hub.rotation.z = Math.PI / 2;
+  for (let i = 0; i < 6; i++) { const s = box(0.88, 0.09, 0.5, MT_DARK, 0, 0, 0, w); s.rotation.x = i / 6 * Math.PI; }
+  return w;
+}
+function makeMonster(col) {
+  const { dark: MT_DARK, chr: MT_CHR } = mtMats();
+  const g = new THREE.Group(), W = 2.2, hw = W / 2;
+  const paint = new THREE.MeshPhysicalMaterial({ color: col, roughness: 0.35, metalness: 0.5, clearcoat: 1, clearcoatRoughness: 0.08 }); paint.color.convertSRGBToLinear();
+  const glass = new THREE.MeshPhysicalMaterial({ color: 0x0d171f, roughness: 0.03, metalness: 0.85, clearcoat: 1 });
+  const body = [[-2.75, 1.75], [-2.8, 2.55], [-0.7, 2.6], [-0.55, 3.45], [0.7, 3.5], [1.25, 2.75], [2.6, 2.65], [2.8, 2.3], [2.8, 1.75],
+    [2.32, 1.75], { arc: [1.7, 1.75, 0.62] }, [1.08, 1.75], [-1.08, 1.75], { arc: [-1.7, 1.75, 0.62] }, [-2.32, 1.75]];
+  g.add(profileMesh(body, W, paint, 0.08));
+  g.add(profileMesh([[-0.45, 2.66], [-0.36, 3.34], [0.62, 3.38], [1.12, 2.78]], W + 0.02, glass, 0.03));
+  box(W - 0.3, 0.06, 1.9, MT_DARK, 0, 2.58, -1.7, g);                                     // the bed
+  [-1, 1].forEach(s => {
+    box(0.04, 0.18, 5.0, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 }), s * (hw + 0.005), 2.15, 0, g);   // a side stripe
+    [1.7, -1.7].forEach(z => { const f = new THREE.Mesh(new THREE.TorusGeometry(0.66, 0.1, 8, 24, Math.PI), MT_DARK); f.rotation.y = Math.PI / 2; f.position.set(s * (hw - 0.02), 1.75, z); add(f, g); });
+    const rb = cyl(0.06, 0.06, 1.1, MT_CHR, s * (hw - 0.25), 3.1, -0.85, g, 10); rb.rotation.x = 0.25;   // roll bar posts
+    cyl(0.07, 0.07, 1.4, MT_CHR, s * 0.6, 1.45, 0, g, 10).rotation.x = Math.PI / 2;                  // the frame
+    [1.7, -1.7].forEach(z => { const sh = cyl(0.09, 0.09, 1.0, new THREE.MeshStandardMaterial({ color: 0xffc23a, roughness: 0.4 }), s * 0.7, 1.35, z + 0.35, g, 10); sh.rotation.x = 0.5; });   // shocks
+    const ex = cyl(0.08, 0.1, 1.2, MT_CHR, s * (hw - 0.1), 3.0, -0.6, g, 10);                         // exhaust stacks
+    ellip(0.2, 0.12, 0.05, headMat, s * 0.7, 2.45, 2.81, g, 12); ellip(0.14, 0.1, 0.04, tailMat, s * 0.8, 2.3, -2.81, g, 10);
+  });
+  box(W - 0.4, 0.08, 0.08, MT_CHR, 0, 3.55, -0.85, g);
+  box(1.4, 0.14, 0.2, MT_DARK, 0, 3.6, 0.35, g); [-0.45, -0.15, 0.15, 0.45].forEach(x => ellip(0.1, 0.07, 0.04, headMat, x, 3.6, 0.46, g, 10));   // light bar
+  box(W + 0.1, 0.22, 0.25, MT_CHR, 0, 1.9, 2.85, g); box(W + 0.1, 0.22, 0.25, MT_CHR, 0, 1.9, -2.85, g);                                    // bumpers
+  box(0.9, 0.3, 0.04, MT_DARK, 0, 2.35, 2.82, g);                                                                                       // grille
+  [1.7, -1.7].forEach(z => cyl(0.1, 0.1, 2.2, MT_DARK, 0, 1.0, z, g, 10).rotation.z = Math.PI / 2);                                       // axles
+  const Wh = [mtWheel(g, -1.25, 1.0, 1.7), mtWheel(g, 1.25, 1.0, 1.7), mtWheel(g, -1.25, 1.0, -1.7), mtWheel(g, 1.25, 1.0, -1.7)];
+  scene.remove(g);
+  return { mesh: g, wheels: Wh, front: [Wh[0], Wh[1]] };
+}
+
+// ----- a better jet ski -----
+// The hull is a side profile that narrows to the nose.
+function jsTaper(mesh, z0, z1, k) {
+  const a = mesh.geometry.attributes.position;
+  for (let i = 0; i < a.count; i++) { const z = a.getZ(i); if (z > z0) a.setX(i, a.getX(i) * (1 - Math.min(1, (z - z0) / (z1 - z0)) * k)); }
+  a.needsUpdate = true; mesh.geometry.computeVertexNormals(); return mesh;
+}
+function makeJetski(col) {
+  const { chr: MT_CHR } = mtMats();
+  const g = new THREE.Group();
+  const paint = new THREE.MeshPhysicalMaterial({ color: col, roughness: 0.3, metalness: 0.2, clearcoat: 1, clearcoatRoughness: 0.05 }); paint.color.convertSRGBToLinear();
+  const white = new THREE.MeshPhysicalMaterial({ color: 0xf6f4ee, roughness: 0.35, clearcoat: 0.8 }); white.color.convertSRGBToLinear();
+  const dark = M(0x23272c, 0.6), seatM = M(0x2a2e33, 0.85);
+  g.add(jsTaper(profileMesh([[-1.3, 0.02], [-1.36, 0.42], [-0.2, 0.5], [0.6, 0.55], [1.4, 0.45], [1.62, 0.28], [1.25, 0.02]], 1.0, white, 0.06), 0.4, 1.62, 0.75));
+  g.add(jsTaper(profileMesh([[-1.28, 0.4], [-1.28, 0.6], [-0.35, 0.64], [0.3, 0.92], [1.0, 0.86], [1.5, 0.48], [0.6, 0.5], [-0.2, 0.46]], 0.9, paint, 0.06), 0.3, 1.5, 0.72));
+  g.add(profileMesh([[-1.12, 0.6], [-1.1, 0.84], [0.22, 0.9], [0.32, 0.66]], 0.44, seatM, 0.07));
+  [-1, 1].forEach(s => {
+    box(0.22, 0.04, 1.2, dark, s * 0.36, 0.5, -0.55, g);                                                  // foot wells
+    box(0.02, 0.07, 1.9, new THREE.MeshStandardMaterial({ color: 0x22313c, roughness: 0.5 }), s * 0.505, 0.33, 0.05, g);   // a side stripe
+    const mr = box(0.12, 0.08, 0.03, dark, s * 0.38, 1.16, 0.62, g); mr.rotation.y = s * 0.3;              // mirrors
+    box(0.06, 0.12, 0.06, dark, s * 0.3, 1.05, 0.48, g);                                                  // grips
+  });
+  const post = cyl(0.05, 0.06, 0.4, dark, 0, 0.98, 0.42, g, 10); post.rotation.x = -0.4;
+  box(0.66, 0.05, 0.05, MT_CHR, 0, 1.08, 0.5, g);
+  box(0.5, 0.12, 0.02, new THREE.MeshStandardMaterial({ color: 0x9fd8ff, roughness: 0.05, metalness: 0.6 }), 0, 1.05, 0.72, g).rotation.x = -0.6;   // windscreen
+  cyl(0.09, 0.11, 0.2, dark, 0, 0.18, -1.36, g, 12).rotation.x = Math.PI / 2;                                // the jet nozzle
+  box(0.5, 0.05, 0.08, MT_CHR, 0, 0.66, -1.24, g);                                                           // rear handle
+  // the foam behind the jet ski grows with the speed
+  const foam = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 3), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false }));
+  foam.rotation.x = -Math.PI / 2; foam.position.set(0, 0.04, -2.8); g.add(foam); foam.visible = false;
+  return { mesh: g, wheels: [], front: [], foam, rider: true, seatY: 0.88, seatZ: -0.45, grips: [0.3, 1.06, 0.48], pegs: [0.36, 0.52, -0.25] };
+}
+onFrame.push(() => { if (typeof jetskis === 'undefined') return; jetskis.forEach(j => { const f = j.parts.foam; if (!f) return; const s = Math.abs(j.speed); f.visible = s > 1.5; f.scale.set(1, clamp(s / 8, 0.3, 1.6), 1); f.position.z = -1.4 - 1.5 * clamp(s / 8, 0.3, 1.6); f.material.opacity = clamp(s / 14, 0.2, 0.6); }); });
 // ===== zoo animals made for this project by tools/zoo.py =====
 // kind: height in metres in the zoo. The model file has the name of the kind.
 const ZOO_OWN = { giraffe: 5.3, kangaroo: 1.9, flamingo: 1.6, parrot: 0.5, koala: 1.1, meerkat: 0.6 };
