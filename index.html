@@ -5191,7 +5191,7 @@ function frame(now) {
 
   // camera
   let tgt, head, dist, hgt;
-  if (cur) { tgt = cur.parts.mesh.position; head = cur.heading; dist = cur.kind === 'heli' ? 18 : cur.kind === 'bike' || cur.kind === 'quad' ? 7.5 : cur.kind === 'bumper' ? 7 : 11; hgt = cur.kind === 'heli' ? 6 : 3.6; if (cur.kind === 'plane') { dist = 22; hgt = 6.5; } if (cur.kind === 'horse') { dist = 8; hgt = 3.4; } if (cur.kind === 'digger') { dist = 13; hgt = 5; } if (trailers.some(tr => tr.hitchedTo === cur)) { dist = 16; hgt = 6; } }
+  if (cur) { tgt = cur.parts.mesh.position; head = cur.heading; dist = cur.kind === 'heli' ? (cur.parts.jetpack ? 8 : 18) : cur.kind === 'bike' || cur.kind === 'quad' ? 7.5 : cur.kind === 'bumper' ? 7 : 11; hgt = cur.kind === 'heli' ? 6 : 3.6; if (cur.kind === 'plane') { dist = 22; hgt = 6.5; } if (cur.kind === 'horse') { dist = 8; hgt = 3.4; } if (cur.kind === 'digger') { dist = 13; hgt = 5; } if (trailers.some(tr => tr.hitchedTo === cur)) { dist = 16; hgt = 6; } }
   else if (player.onRide) { tgt = player.g.position; head = player.heading; dist = 0; hgt = 0; }
   else { tgt = player.g.position; head = player.heading; dist = player.ride ? 8 : 5.6; hgt = player.ride ? 3.5 : 2.5; }
   const moving = cur ? Math.abs(cur.speed) > 1 : (player.ride || Math.hypot(player.vel.x, player.vel.z) > 1);
@@ -8008,7 +8008,7 @@ function updateActors(dt) {
     if (st === 'walk' && rate) rate = clamp(a.sp / a.pace, 0.5, 2.4);
     a.mixer.update(dt * rate);
     if (a === playerActor && a.hips.length) {   // seated: lift the model so its hips rest on the seat instead of sinking into it
-      const seated = player.onRide || player.ride || (player.inV && player.inV.parts.rider);
+      const seated = player.onRide || player.ride || (player.inV && player.inV.parts.rider && !player.inV.parts.stand);
       if (seated) { let hy = 0; a.hips.forEach(b => { hy += b.getWorldPosition(_mv).y; }); hy /= a.hips.length; a.lift = clamp(a.lift + (a.g.getWorldPosition(_mv).y + (player.ride ? 0.3 : player.inV ? 0.82 : 0.76) - hy), -0.3, 1.2); } else a.lift = 0;
       a.holder.position.y = a.lift / a.g.scale.y;
     }
@@ -8029,7 +8029,7 @@ function dressPlayer() {
   if (playerActor) { player.g.remove(playerActor.holder); const i = actors.indexOf(playerActor); if (i >= 0) actors.splice(i, 1); playerActor = null; }
   const c = CHARS[charSel];
   playerActor = dress(player.g, c.m, 1.45, { gs: player.g.scale.x, keep: [medalMesh], pace: 3.2, pal: c.pal,
-    state: a => player.onRide || player.ride || (player.inV && player.inV.parts.rider) ? 'sit' : !player.grounded ? 'jump' : a.sp > 7.5 ? 'run' : a.sp > 0.3 ? 'walk' : 'idle' });
+    state: a => player.onRide || player.ride || (player.inV && player.inV.parts.rider && !player.inV.parts.stand) ? 'sit' : !player.grounded ? 'jump' : a.sp > 7.5 ? 'run' : a.sp > 0.3 ? 'walk' : 'idle' });
 }
 // kind: [model, height in metres, tint, factor for the walk pace]
 const ZOO_M = { zebra: ['zebra', 2.2], tortoise: ['turtle', 0.8], wolf: ['wolf', 1.25], hippo: ['hippo', 2], tiger: ['tiger', 1.6], lion: ['lion', 1.8],
@@ -8374,7 +8374,7 @@ Object.assign(MT.de, { jShirts: 'Trikots', jFlags: 'Länder', jClubs: 'Klubs', j
 SAVE.jname = typeof SAVE.jname === 'string' ? SAVE.jname : ''; SAVE.jnum = typeof SAVE.jnum === 'string' ? SAVE.jnum : '10';
 function jerseyCanvas(j, back) {
   const c = document.createElement('canvas'); c.width = JS_W; c.height = JS_H; const x = c.getContext('2d');
-  j[2](x, 0, JS_W / 2); j[2](x, JS_W / 2, JS_W / 2);
+  j[2](x, 0, JS_W / 2, 'front'); j[2](x, JS_W / 2, JS_W / 2, 'back');
   if (back) {
     x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = j[3]; x.strokeStyle = j[3] === '#ffffff' ? '#1c1c1c' : '#ffffff'; x.lineJoin = 'round';
     const cx = JS_W * 0.75, name = SAVE.jname.trim().toUpperCase().slice(0, 12), num = SAVE.jnum.trim().slice(0, 2);
@@ -8434,7 +8434,7 @@ metaCss.textContent += '.pick.jshop{grid-template-columns:repeat(5,1fr)}.pick.js
   + '.pick.jshop small{display:block;font-size:12px;font-weight:800;color:var(--sun)}.pick.jshop .sel small{color:var(--sunInk)}'
   + '.jcustom{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin:10px 0}.jcustom label{display:flex;flex-direction:column;gap:4px;font-weight:700;font-size:13px}'
   + '.jcustom input{font:inherit;font-size:18px;padding:8px 10px;border-radius:12px;border:2px solid var(--line);width:150px;box-sizing:border-box}#jNum{width:70px}.jcustom .cta{padding:8px 14px;font-size:15px}';
-{ const f = openTasks; openTasks = function () { f(); const s = $('metaCard').querySelector('.pick.shop'); if (s) s.insertAdjacentHTML('afterend', jerseyHtml()); }; }
+// the shirts are in the shop view (src/shop2.js)
 $('metaCard').addEventListener('click', e => {
   const b = e.target.closest('button[data-shirt]'); if (!b) return; const id = b.dataset.shirt;
   if (id && SAVE.own.indexOf('j:' + id) < 0) { if (SAVE.stars < JS_PRICE) { tone('sine', 200, 150, 0.12, 0.04); return; } SAVE.stars -= JS_PRICE; $('starN').textContent = SAVE.stars; SAVE.own.push('j:' + id); SAVE.shirt = id; ding(); }
@@ -8546,6 +8546,312 @@ onFrame.push(() => {
   if (on) joyRStyle(); else { joyR.id = null; joyR.x = 0; knobR.style.transform = ''; }
 });
 addEventListener('resize', () => { if (twoWas) joyRStyle(); });
+// ===== shop2: the shop view with tabs, shirts with animal and dinosaur pictures, vehicles to buy, jet skis, easy questions, more stars =====
+
+// ----- more stars: each reward gives 3 times as many stars -----
+{ const f = star; star = function (n) { f(n > 0 ? n * 3 : n); }; }
+
+// ----- questions for a child of 3 or 4: no reading -----
+// The entry questions use only tasks with pictures and a voice. The count task shows dots on each answer.
+// The voice also says the hint after a wrong answer.
+const QUIZ_YOUNG = ['math', 'colors', 'shapes', 'sizes', 'pairs', 'patterns', 'memory', 'words'];
+{ const f = eff; eff = function () { const e = f(); return AGE < 5 ? Math.min(e, 4) : e; }; }
+{ const f = gate; gate = function (cb) {
+  f(cb);
+  if (lesson.gate && AGE < 5 && QUIZ_YOUNG.indexOf(lesson.subj) < 0) { lesson.subj = pick(QUIZ_YOUNG.filter(k => GEN[k])); newTask(); }
+}; }
+{ const f = GEN.math; GEN.math = function (e) {
+  const q = f(e); if (e > 4) return q;
+  q.ans.forEach(a => { a.html = '<span class="ndots">' + '<i></i>'.repeat(a.val) + '</span>' + a.html; });
+  return q;
+}; }
+{ const f = answer; answer = function (v, btn) {
+  const w = lesson.wrong; f(v, btn);
+  if (lesson.wrong === 1 && w === 0 && lesson.q) say(lesson.q.hint || pick([].concat(t('wrong'))));
+}; }
+
+// ----- pictures: a small render of a model, for the shop and for the shirts -----
+const SNAP = { rt: null, cache: {} };
+function snapBox(obj) {
+  const bb = new THREE.Box3(); let bones = 0;
+  obj.traverse(o => { if (o.isBone) { bones++; bb.expandByPoint(o.getWorldPosition(new THREE.Vector3())); } });
+  if (bones < 3) return new THREE.Box3().setFromObject(obj);
+  const s = bb.getSize(new THREE.Vector3()); bb.expandByVector(s.multiplyScalar(0.12)); return bb;
+}
+function snapObj(obj, key, yaw) {
+  if (SNAP.cache[key]) return SNAP.cache[key];
+  const W = 192; if (!SNAP.rt) SNAP.rt = new THREE.WebGLRenderTarget(W, W);
+  const sc = new THREE.Scene(), hold = new THREE.Group();
+  sc.add(new THREE.HemisphereLight(0xffffff, 0x8f8a80, 1.15)); const dl = new THREE.DirectionalLight(0xffffff, 1.1); dl.position.set(3, 6, 5); sc.add(dl);
+  hold.add(obj); hold.rotation.y = yaw === undefined ? 0.7 : yaw; sc.add(hold); hold.updateMatrixWorld(true);
+  const bb = snapBox(hold), c = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(new THREE.Vector3()), r = Math.max(sz.x, sz.y, sz.z) * 0.6;
+  const cam = new THREE.PerspectiveCamera(30, 1, r * 0.05, r * 40); cam.position.set(c.x, c.y + r * 0.45, c.z + r * 3.6); cam.lookAt(c);
+  const old = renderer.getRenderTarget(), oc = renderer.getClearColor(new THREE.Color()), oa = renderer.getClearAlpha();
+  renderer.setRenderTarget(SNAP.rt); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(sc, cam);
+  const px = new Uint8Array(W * W * 4); renderer.readRenderTargetPixels(SNAP.rt, 0, 0, W, W, px);
+  renderer.setRenderTarget(old); renderer.setClearColor(oc, oa);
+  const cv = document.createElement('canvas'); cv.width = cv.height = W; const cx = cv.getContext('2d'), id = cx.createImageData(W, W);
+  for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) { const i = ((W - 1 - y) * W + x) * 4, o = (y * W + x) * 4; for (let k = 0; k < 3; k++) id.data[o + k] = Math.round(255 * Math.pow(px[i + k] / 255, 1 / 2.2)); id.data[o + 3] = px[i + 3]; }
+  cx.putImageData(id, 0, 0);
+  hold.remove(obj);
+  return (SNAP.cache[key] = cv);
+}
+// A picture of a loaded model, or null while the model is not loaded.
+function snapModel(name) {
+  if (SNAP.cache['m:' + name]) return SNAP.cache['m:' + name];
+  const M_ = MODELS[name]; if (!M_) return null;
+  const obj = THREE.SkeletonUtils.clone(M_.scene); obj.traverse(o => { if (o.isMesh) o.frustumCulled = false; });
+  return snapObj(obj, 'm:' + name, 0.6);
+}
+const snapUrl = cv => cv ? (cv.url || (cv.url = cv.toDataURL())) : '';
+
+// ----- shirts: countries, animals and dinosaurs -----
+JERSEYS.splice(10);   // the club shirts are gone
+const JS_PICS = [
+  ['lion', { hr: 'Lav', en: 'Lion', de: 'Löwe' }, '#ffc23a'], ['elephant', { hr: 'Slon', en: 'Elephant', de: 'Elefant' }, '#7fc8ff'],
+  ['giraffe', { hr: 'Žirafa', en: 'Giraffe', de: 'Giraffe' }, '#9ee07a'], ['zebra', { hr: 'Zebra', en: 'Zebra', de: 'Zebra' }, '#ff9ec7'],
+  ['tiger', { hr: 'Tigar', en: 'Tiger', de: 'Tiger' }, '#4fc3b0'], ['penguin', { hr: 'Pingvin', en: 'Penguin', de: 'Pinguin' }, '#9fd8ff'],
+  ['dolphin', { hr: 'Dupin', en: 'Dolphin', de: 'Delfin' }, '#ffe066'], ['monkey', { hr: 'Majmun', en: 'Monkey', de: 'Affe' }, '#c39bff'],
+  ['kangaroo', { hr: 'Klokan', en: 'Kangaroo', de: 'Känguru' }, '#ffb27a'], ['bear', { hr: 'Medvjed', en: 'Bear', de: 'Bär' }, '#b8f0a0'],
+  ['trex', { hr: 'T-rex', en: 'T. rex', de: 'T-Rex' }, '#ffd166', 'dino'], ['triceratops', { hr: 'Triceratops', en: 'Triceratops', de: 'Triceratops' }, '#8fd3ff', 'dino'],
+  ['stego', { hr: 'Stegosaur', en: 'Stegosaurus', de: 'Stegosaurus' }, '#ff9a8a', 'dino'], ['raptor', { hr: 'Raptor', en: 'Raptor', de: 'Raptor' }, '#c9f27a', 'dino'],
+  ['parasaur', { hr: 'Parasaurolof', en: 'Parasaurolophus', de: 'Parasaurolophus' }, '#ffc8f0', 'dino'], ['brachio', { hr: 'Brahiosaur', en: 'Brachiosaurus', de: 'Brachiosaurus' }, '#a8e6ff', 'dino'],
+  ['ptero', { hr: 'Pterosaur', en: 'Pterosaur', de: 'Flugsaurier' }, '#ffe8a0', 'dino'], ['spino', { hr: 'Spinosaur', en: 'Spinosaurus', de: 'Spinosaurus' }, '#b0f0d0', 'dino'],
+  ['ankylo', { hr: 'Ankilosaur', en: 'Ankylosaurus', de: 'Ankylosaurus' }, '#ffb0b0', 'dino'], ['pachy', { hr: 'Pahicefalosaur', en: 'Pachycephalosaurus', de: 'Pachycephalosaurus' }, '#d0c0ff', 'dino']
+];
+JS_PICS.forEach(([m, names, bg, grp]) => JERSEYS.push(['p:' + m, names, (c, x, w, side) => {
+  jsFill(c, bg, x, 0, w, JS_H);
+  const pic = side === 'front' && snapModel(m); if (pic) c.drawImage(pic, x + w / 2 - 96, JS_H / 2 - 92, 192, 192);
+}, '#22313c', grp || 'animal', m]));
+const jGroup = j => j[4] || 'flag';
+// a shirt with a picture is painted again when its model is loaded
+function jsNeed(list, done) { const miss = list.filter(n => !MODELS[n]); if (!miss.length) { done(); return; } loadModels(miss, done); }
+{ const f = applyJersey; applyJersey = function () { f(); const j = JERSEYS.find(q => q[0] === SAVE.shirt); if (j && j[5] && !MODELS[j[5]]) jsNeed([j[5]], () => f()); }; }
+
+// ----- vehicles to buy, made in code -----
+const PAINT = c => { const m = new THREE.MeshStandardMaterial({ color: c, roughness: 0.35, metalness: 0.3 }); m.color.convertSRGBToLinear(); m.userData.lin = true; return m; };
+// A rider who stands (scooter, skateboard, jetpack): the feet are on the deck, the pose is the stand pose.
+{ const f = seatRider; seatRider = function (v) {
+  const P_ = v.parts; if (!P_.stand) { f(v); return; }
+  const m = P_.mesh; m.updateMatrixWorld(); player.g.quaternion.copy(m.quaternion);
+  player.g.position.copy(m.localToWorld(_ra.set(0, P_.seatY || 0, P_.seatZ || 0))); STAND();
+}; }
+function makeScooter(col) {
+  const g = new THREE.Group(), paint = PAINT(col), dark = M(0x2a2e33, 0.5);
+  box(0.22, 0.05, 0.85, paint, 0, 0.14, -0.02, g);
+  const F = wheel(0.11, 0.06, g, 0, 0.11, 0.42, dark), B = wheel(0.11, 0.06, g, 0, 0.11, -0.44, dark);
+  const stem = cyl(0.025, 0.025, 0.95, paint, 0, 0.62, 0.43, g, 10); stem.rotation.x = -0.12;
+  box(0.52, 0.04, 0.04, dark, 0, 1.08, 0.38, g);
+  return { mesh: g, wheels: [F, B], front: [F], rider: true, stand: true, seatY: 0.17, seatZ: -0.12, grips: [0.24, 1.08, 0.38] };
+}
+function makeBicycle(col) {
+  const g = new THREE.Group(), paint = PAINT(col), dark = M(0x2a2e33, 0.5);
+  const F = wheel(0.34, 0.06, g, 0, 0.34, 0.56, chrome), B = wheel(0.34, 0.06, g, 0, 0.34, -0.56, chrome);
+  const t1 = cyl(0.03, 0.03, 0.75, paint, 0, 0.72, 0.02, g, 8); t1.rotation.x = Math.PI / 2;
+  const t2 = cyl(0.03, 0.03, 0.62, paint, 0, 0.55, -0.28, g, 8); t2.rotation.x = 0.55;
+  const t3 = cyl(0.03, 0.03, 0.62, paint, 0, 0.55, 0.36, g, 8); t3.rotation.x = -0.35;
+  cyl(0.025, 0.025, 0.32, dark, 0, 0.88, -0.36, g, 8); box(0.2, 0.06, 0.3, dark, 0, 1.03, -0.38, g);
+  cyl(0.025, 0.025, 0.5, dark, 0, 0.95, 0.46, g, 8); box(0.56, 0.04, 0.04, dark, 0, 1.18, 0.46, g);
+  return { mesh: g, wheels: [F, B], front: [F], rider: true, seatY: 1.05, seatZ: -0.4, grips: [0.26, 1.18, 0.46], pegs: [0.15, 0.32, 0.02] };
+}
+function makeSkate(col) {
+  const g = new THREE.Group(), paint = PAINT(col), W = [];
+  const d = box(0.28, 0.04, 0.84, paint, 0, 0.12, 0, g); d.scale.set(1, 1, 1);
+  [-0.3, 0.3].forEach(z => { [-0.1, 0.1].forEach(x => { W.push(wheel(0.05, 0.04, g, x, 0.05, z, M(0xf2f0ea, 0.5))); }); box(0.24, 0.03, 0.05, chrome, 0, 0.085, z, g); });
+  return { mesh: g, wheels: W, front: [W[2], W[3]], rider: true, stand: true, seatY: 0.14, seatZ: 0 };
+}
+function makeSport(col) {
+  const p = makeCar(col); scene.remove(p.mesh); p.paint = col;
+  if (MODELS.car4) { const a = dress(p.mesh, 'car4', 0, { len: 4.6 }); if (a) { p.mw = []; a.obj.traverse(o => { if (/wheel/i.test(o.name)) p.mw.push(o); }); paintCar(a.holder, new THREE.Color(col).convertSRGBToLinear()); } }
+  return p;
+}
+function makeMonster(col) {
+  const g = new THREE.Group(), paint = PAINT(col), dark = M(0x23272c, 0.7), W = [];
+  box(2.3, 0.7, 4.0, paint, 0, 1.95, 0, g); box(2.0, 0.85, 1.9, paint, 0, 2.7, -0.35, g);
+  box(1.86, 0.6, 0.06, new THREE.MeshStandardMaterial({ color: 0x16222c, roughness: 0.05, metalness: 0.8 }), 0, 2.75, 0.62, g);
+  box(1.6, 0.5, 3.2, dark, 0, 1.4, 0, g);
+  [[1.3, 1.45], [-1.3, 1.45], [1.3, -1.45], [-1.3, -1.45]].forEach(([x, z]) => W.push(wheel(0.88, 0.7, g, x, 0.88, z, M(0xc9d0d6, 0.3, 0.8), true)));
+  [-0.6, 0.6].forEach(x => ellip(0.14, 0.14, 0.04, headMat, x, 2.0, 2.01, g, 10));
+  return { mesh: g, wheels: W, front: [W[0], W[1]] };
+}
+function makeFlyCar(col) {
+  const p = makeCar(col); scene.remove(p.mesh); const g = p.mesh, paint = PAINT(col);
+  [-1, 1].forEach(s => { const w = box(1.4, 0.08, 0.9, paint, s * 1.55, 0.95, -0.3, g); w.rotation.z = s * 0.12; });
+  const rotor = new THREE.Group(); rotor.position.set(0, 0.25, 0); g.add(rotor);
+  const glow = new THREE.MeshStandardMaterial({ color: 0x7fe8ff, emissive: 0x3fc8ff, emissiveIntensity: 1.2, roughness: 0.3 });
+  [[1, 1.3], [-1, 1.3], [1, -1.3], [-1, -1.3]].forEach(([x, z]) => { const r = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.06, 8, 24), glow); r.rotation.x = Math.PI / 2; r.position.set(x * 1.05, 0, z); rotor.add(r); });
+  const tail = new THREE.Group(); g.add(tail);
+  return { mesh: g, rotor, tail, wheels: p.wheels, front: p.front, flycar: true };
+}
+function makeJetpack() {
+  const g = new THREE.Group(), body = PAINT(0xd0d6dc), red = PAINT(0xe2453a);
+  [-0.13, 0.13].forEach(x => { cyl(0.11, 0.11, 0.55, body, x, 1.05, -0.3, g, 14); ellip(0.11, 0.08, 0.11, red, x, 1.34, -0.3, g, 12); cyl(0.07, 0.1, 0.12, M(0x2a2e33, 0.4, 0.6), x, 0.72, -0.3, g, 12); });
+  box(0.36, 0.08, 0.06, M(0x2a2e33, 0.6), 0, 1.2, -0.17, g);
+  const fire = new THREE.Group(); g.add(fire);
+  const fm = new THREE.MeshBasicMaterial({ color: 0xffa531, transparent: true, opacity: 0.85 });
+  [-0.13, 0.13].forEach(x => { const c = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.45, 10), fm); c.rotation.x = Math.PI; c.position.set(x, 0.43, -0.3); fire.add(c); });
+  fire.visible = false;
+  return { mesh: g, rotor: new THREE.Group(), tail: new THREE.Group(), fire, rider: true, stand: true, seatY: 0, seatZ: 0, jetpack: true };
+}
+function makeJetski(col) {
+  const g = new THREE.Group(), paint = PAINT(col), white = M(0xf4f1ea, 0.5), dark = M(0x2a2e33, 0.6);
+  const hull = ellip(0.55, 0.28, 1.3, white, 0, 0.25, 0, g, 18); hull.scale.y = 0.28;
+  box(0.9, 0.3, 1.6, paint, 0, 0.45, -0.25, g); ellip(0.45, 0.25, 0.7, paint, 0, 0.45, 0.75, g, 16);
+  box(0.4, 0.18, 0.9, dark, 0, 0.68, -0.4, g);
+  cyl(0.04, 0.04, 0.45, dark, 0, 0.85, 0.32, g, 8).rotation.x = -0.5; box(0.62, 0.05, 0.05, dark, 0, 1.05, 0.42, g);
+  return { mesh: g, wheels: [], front: [], rider: true, seatY: 0.78, seatZ: -0.4, grips: [0.28, 1.05, 0.42], pegs: [0.32, 0.5, -0.2] };
+}
+// [id, tab, names, price, make, kind, cfg]
+const SHOP_VEH = [
+  ['scooter', 'wheels', { hr: 'Romobil', en: 'Scooter', de: 'Roller' }, 15, () => makeScooter(0x2fb6c9), 'bike', { max: 5.5, acc: 6, turn: 2.6, radius: 1.0 }],
+  ['bicycle', 'wheels', { hr: 'Bicikl', en: 'Bicycle', de: 'Fahrrad' }, 20, () => makeBicycle(0xe2453a), 'bike', { max: 8, acc: 6, turn: 2.3, radius: 1.2 }],
+  ['skate', 'wheels', { hr: 'Skejtboard', en: 'Skateboard', de: 'Skateboard' }, 15, () => makeSkate(0x8a5cd6), 'bike', { max: 6, acc: 6, turn: 2.6, radius: 0.9 }],
+  ['sportR', 'cars', { hr: 'Crveni sportski auto', en: 'Red sports car', de: 'Roter Sportwagen' }, 30, () => makeSport(0xe2231a), 'car', { max: 30, acc: 14, turn: 1.8, radius: 2.4, sport: true }],
+  ['sportY', 'cars', { hr: 'Žuti sportski auto', en: 'Yellow sports car', de: 'Gelber Sportwagen' }, 30, () => makeSport(0xffc400), 'car', { max: 30, acc: 14, turn: 1.8, radius: 2.4, sport: true }],
+  ['sportB', 'cars', { hr: 'Plavi sportski auto', en: 'Blue sports car', de: 'Blauer Sportwagen' }, 30, () => makeSport(0x1f6fe0), 'car', { max: 30, acc: 14, turn: 1.8, radius: 2.4, sport: true }],
+  ['monsterG', 'cars', { hr: 'Zeleni monster truck', en: 'Green monster truck', de: 'Grüner Monstertruck' }, 40, () => makeMonster(0x3fbf4a), 'car', { max: 20, acc: 10, turn: 1.4, radius: 3.0 }],
+  ['monsterO', 'cars', { hr: 'Narančasti monster truck', en: 'Orange monster truck', de: 'Oranger Monstertruck' }, 40, () => makeMonster(0xff7f1f), 'car', { max: 20, acc: 10, turn: 1.4, radius: 3.0 }],
+  ['monsterP', 'cars', { hr: 'Ljubičasti monster truck', en: 'Purple monster truck', de: 'Lila Monstertruck' }, 40, () => makeMonster(0x8a5cd6), 'car', { max: 20, acc: 10, turn: 1.4, radius: 3.0 }],
+  ['flycar', 'fly', { hr: 'Leteći auto', en: 'Flying car', de: 'Fliegendes Auto' }, 50, () => makeFlyCar(0x2fb6c9), 'heli', { max: 22, acc: 7, turn: 1.4, radius: 2.6 }],
+  ['jetpack', 'fly', { hr: 'Jetpack', en: 'Jetpack', de: 'Jetpack' }, 50, () => makeJetpack(), 'heli', { max: 14, acc: 7, turn: 1.8, radius: 1.2 }]
+];
+for (const l in L) { L[l].veh = L[l].veh || {}; SHOP_VEH.forEach(s => { L[l].veh[s[0]] = s[2][l]; }); L[l].veh.jetski = { hr: 'Jet ski', en: 'Jet ski', de: 'Jetski' }[l]; }
+Object.assign(VIC, { scooter: 'person-simple-walk', bicycle: 'person-simple-walk', skate: 'person-simple-walk', sportR: 'car-profile', sportY: 'car-profile', sportB: 'car-profile', monsterG: 'jeep', monsterO: 'jeep', monsterP: 'jeep', flycar: 'airplane', jetpack: 'rocket-launch', jetski: 'boat' });
+['sportR', 'sportY', 'sportB'].forEach(k => { ENG[k] = ENG.car; REC[k] = REC.car; });
+['monsterG', 'monsterO', 'monsterP'].forEach(k => { ENG[k] = ENG.suv; REC[k] = REC.suv; });
+ENG.flycar = ENG.heli; ENG.jetpack = ['triangle', 120, 220, 900, 0.03, 10, 0.03]; ENG.jetski = ENG.quad;
+// The flying car and the jetpack show their own name and height.
+{ const f = updateHud; updateHud = function (cur) { f(cur); if (cur && (cur.parts.flycar || cur.parts.jetpack)) setText(ui.mode, t('veh')[cur.vk] + ' · ' + Math.round(cur.alt) + ' m'); }; }
+// The flying car and the jetpack are ready to fly at once.
+{ const f = enter; enter = function (v) { f(v); if (v.parts.flycar || v.parts.jetpack) v.rotorSpin = 1; }; }
+const shopInst = {};
+function shopRide(id) {
+  const s = SHOP_VEH.find(q => q[0] === id); if (!s) return;
+  let v = shopInst[id];
+  if (!v) { const parts = s[4](); scene.add(parts.mesh); v = shopInst[id] = vehicle(s[5], parts, 0, 0, 0, Object.assign({ vk: id }, s[6])); if (s[5] === 'heli') v.spawn = null; }
+  const p = player.g.position, h = player.heading, side = s[5] === 'car' ? 3.2 : 1.6, pos = { x: p.x + Math.cos(h) * side, y: 0, z: p.z - Math.sin(h) * side };
+  pushOut(pos, v.radius * 0.6);
+  v.parts.mesh.position.set(pos.x, 0, pos.z); v.heading = h; v.parts.mesh.rotation.set(0, h, 0); v.speed = 0; v.alt = 0;
+  if (player.inV) exitVehicle(true);
+  shopClose(); enter(v);
+}
+onFrame.push(() => {
+  const v = player.inV; if (v && v.parts.fire) { v.parts.fire.visible = v.rotorSpin > 0.3; v.parts.fire.scale.setScalar(0.6 + Math.random() * 0.5); }
+  Object.values(shopInst).forEach(q => { if (q.parts.fire && q !== v) q.parts.fire.visible = false; });
+});
+
+// ----- jet skis on the sea: they stay on the water -----
+const jetskis = [[-330, 0xe2453a], [-305, 0xffc400], [-280, 0x2fb6c9], [-255, 0x4fae5a], [-230, 0x8a5cd6]].map(([x, c]) =>
+  vehicle('quad', makeJetski(c), x, 413, 0, { vk: 'jetski', max: 16, acc: 9, turn: 1.9, radius: 1.6 }));
+jetskis.forEach(j => { scene.add(j.parts.mesh); j.parts.mesh.position.y = 0.05; });
+const jetWet = (x, z) => worldWater(x, z) && groundAt(x, z, 0).type === 'water';
+function jetDrive(v, dt, ix, iy) {
+  const m = v.parts.mesh, p = m.position, max = Math.min(v.max, DRIVE_MAX);
+  if (Math.abs(iy) > 0.05) v.speed += iy * v.acc * dt; else v.speed *= Math.max(0, 1 - 0.8 * dt);
+  v.speed = clamp(v.speed, -max * 0.3, max);
+  v.steer += (driveSteer(ix) - v.steer) * Math.min(1, 4 * dt);
+  v.heading -= v.steer * v.turn * dt * clamp(v.speed / 3, -1, 1);
+  const f = fwd(v.heading), nx = p.x + f.x * v.speed * dt, nz = p.z + f.z * v.speed * dt;
+  if (jetWet(nx, nz)) { p.x = nx; p.z = nz; } else v.speed *= -0.3;
+  m.rotation.y = v.heading; m.rotation.z += (-v.steer * clamp(v.speed / max, 0, 1) * 0.3 - m.rotation.z) * Math.min(1, 5 * dt);
+}
+{ const f = updateDriven; updateDriven = function (v, dt, ix, iy) { if (v.vk === 'jetski') jetDrive(v, dt, ix, iy); else f(v, dt, ix, iy); }; }
+onFrame.push((dt, t) => jetskis.forEach((j, i) => {
+  const m = j.parts.mesh; m.position.y = 0.05 + Math.sin(t * 1.6 + i) * 0.06; m.rotation.x = Math.sin(t * 1.3 + i * 2) * 0.04 - clamp(j.speed / 40, -0.1, 0.12);
+  if (j !== player.inV) { j.speed *= 0.97; const p = m.position; if (!jetWet(p.x, p.z)) j.speed = 0; }
+}));
+
+// ----- the shop view -----
+Object.assign(MT.hr, { shTitle: 'Trgovina', shClothes: 'Garderoba', shWheels: 'Romobil, bicikl, skejt', shCars: 'Auti', shFly: 'Letenje', shFlags: 'Države', shAnimals: 'Životinje', shDinos: 'Dinosauri', shHats: 'Kape i balon', shRide: 'Vozi', shOpen: 'Trgovina' });
+Object.assign(MT.en, { shTitle: 'Shop', shClothes: 'Clothes', shWheels: 'Scooter, bike, skate', shCars: 'Cars', shFly: 'Flying', shFlags: 'Countries', shAnimals: 'Animals', shDinos: 'Dinosaurs', shHats: 'Hats and balloon', shRide: 'Ride', shOpen: 'Shop' });
+Object.assign(MT.de, { shTitle: 'Laden', shClothes: 'Kleidung', shWheels: 'Roller, Fahrrad, Skate', shCars: 'Autos', shFly: 'Fliegen', shFlags: 'Länder', shAnimals: 'Tiere', shDinos: 'Dinosaurier', shHats: 'Mützen und Ballon', shRide: 'Fahren', shOpen: 'Laden' });
+const SH_SVG = {
+  clothes: '<svg viewBox="0 0 64 64" width="44" height="44" aria-hidden="true"><path d="M18 8l-12 8 6 10 5-3v17h22V23l5 3 6-10-12-8c-2 4-6 6-10 6s-8-2-10-6z" fill="#ff6b4a" stroke="#22313c" stroke-width="2.5" stroke-linejoin="round"/>'
+    + '<path d="M36 34h20l2 26h-8l-2-16-2 16h-8z" fill="#2d5d9f" stroke="#22313c" stroke-width="2.5" stroke-linejoin="round"/></svg>',
+  wheels: '<svg viewBox="0 0 64 64" width="44" height="44" aria-hidden="true"><circle cx="15" cy="44" r="11" fill="none" stroke="#22313c" stroke-width="4"/><circle cx="49" cy="44" r="11" fill="none" stroke="#22313c" stroke-width="4"/>'
+    + '<path d="M15 44l12-20h18l4 20M27 24l8 20h14M23 18h10M45 24l-3-8h6" fill="none" stroke="#e2453a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  cars: '<svg viewBox="0 0 64 64" width="44" height="44" aria-hidden="true"><path d="M6 40l4-10 10-3 8-8h14l10 9 6 2v10z" fill="#ffc400" stroke="#22313c" stroke-width="2.5" stroke-linejoin="round"/>'
+    + '<circle cx="19" cy="42" r="8" fill="#22313c"/><circle cx="47" cy="42" r="8" fill="#22313c"/><circle cx="19" cy="42" r="3" fill="#fff"/><circle cx="47" cy="42" r="3" fill="#fff"/><path d="M29 22h11l7 7H24z" fill="#9fd8ff"/></svg>',
+  fly: '<svg viewBox="0 0 64 64" width="44" height="44" aria-hidden="true"><rect x="20" y="14" width="10" height="28" rx="5" fill="#d0d6dc" stroke="#22313c" stroke-width="2.5"/><rect x="34" y="14" width="10" height="28" rx="5" fill="#d0d6dc" stroke="#22313c" stroke-width="2.5"/>'
+    + '<path d="M25 44l-4 12 4-4 4 4zM39 44l-4 12 4-4 4 4z" fill="#ff8a1f"/><rect x="18" y="22" width="28" height="5" rx="2" fill="#e2453a"/></svg>'
+};
+let shopTab = 'clothes';
+function shopPrice(owned, wearing, price, ride) {
+  if (!owned) return '<small class="pr">' + ic('star') + ' ' + price + '</small>';
+  return '<small class="own">' + (ride ? ic('car-profile') + ' ' + mt('shRide') : wearing ? ic('check') : '·') + '</small>';
+}
+function shopTile(attr, pic, name, price, owned, wearing, ride, bg) {
+  return '<button type="button" class="sitem' + (wearing ? ' sel' : '') + (owned ? '' : ' lock') + '" ' + attr + ' title="' + name + '"><span class="spic"' + (bg ? ' style="background:' + bg + '"' : '') + '>' + pic + '</span><span class="snm">' + name + '</span>' + shopPrice(owned, wearing, price, ride) + '</button>';
+}
+const shopVehPic = s => { let cv = SNAP.cache['v:' + s[0]]; if (!cv) { const p = s[4](); scene.remove(p.mesh); cv = snapObj(p.mesh, 'v:' + s[0], 0.75); } return '<img alt="" src="' + snapUrl(cv) + '">'; };
+function shopBody() {
+  const own = k => SAVE.own.indexOf(k) >= 0;
+  if (shopTab === 'clothes') {
+    const shirt = j => { const pic = j[5] ? snapModel(j[5]) : null, prev = document.createElement('canvas'); prev.width = prev.height = 64;
+      const c = jerseyCanvas(j, false); prev.getContext('2d').drawImage(c, 0, 0, JS_W / 2, JS_H, 0, 8, 64, 48);
+      return shopTile('data-shirt="' + j[0] + '"', '<img alt="" src="' + (pic ? snapUrl(pic) : prev.toDataURL()) + '">', j[1][LANG], JS_PRICE, own('j:' + j[0]), SAVE.shirt === j[0], false, j[5] ? JS_PICS.find(q => 'p:' + q[0] === j[0])[2] : ''); };
+    const grp = g => JERSEYS.filter(j => jGroup(j) === g).map(shirt).join('');
+    const hats = SHOP.map(([k, e, c]) => shopTile('data-hat="' + k + '"', ic(e), t('shopN') && t('shopN')[k] || '', c, own(k), SAVE.wear === k, false)).join('');
+    const esc = s => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+    return '<p class="lbl">' + mt('shFlags') + '</p><div class="sgrid">' + grp('flag') + '</div>'
+      + '<p class="lbl">' + mt('shAnimals') + '</p><div class="sgrid">' + grp('animal') + '</div>'
+      + '<p class="lbl">' + mt('shDinos') + '</p><div class="sgrid">' + grp('dino') + '</div>'
+      + '<div class="jcustom"><label>' + mt('jName') + '<input id="jName" maxlength="12" autocomplete="off" value="' + esc(SAVE.jname) + '"></label>'
+      + '<label>' + mt('jNum') + '<input id="jNum" maxlength="2" inputmode="numeric" autocomplete="off" value="' + esc(SAVE.jnum) + '"></label>'
+      + '<button type="button" class="cta ghost" data-shirt="">' + mt('jNone') + '</button></div>'
+      + '<p class="lbl">' + mt('shHats') + '</p><div class="sgrid hats">' + hats + '</div>';
+  }
+  return '<div class="sgrid big">' + SHOP_VEH.filter(s => s[1] === shopTab).map(s => shopTile('data-veh="' + s[0] + '"', shopVehPic(s), s[2][LANG], s[3], own('v:' + s[0]), false, own('v:' + s[0]))).join('') + '</div>';
+}
+function shopRender() {
+  const tabs = [['clothes', 'shClothes'], ['wheels', 'shWheels'], ['cars', 'shCars'], ['fly', 'shFly']];
+  $('metaCard').innerHTML = '<h2>' + mt('shTitle') + ' <span>' + ic('star') + ' ' + SAVE.stars + '</span></h2>'
+    + '<div class="stabs">' + tabs.map(([k, n]) => '<button type="button" data-tab="' + k + '"' + (shopTab === k ? ' class="sel"' : '') + '>' + SH_SVG[k] + '<span>' + mt(n) + '</span></button>').join('') + '</div>'
+    + '<div class="sbody">' + shopBody() + '</div>'
+    + '<div class="actions"><button class="cta ghost" type="button" data-m="close">' + mt('close') + '</button></div>';
+  $('metaCard').classList.add('shopcard');
+}
+function shopOpen(tab) {
+  if (tab) shopTab = tab; running = false; $('metaView').hidden = false; shopRender();
+  const need = JS_PICS.map(p => p[0]).filter(n => !MODELS[n]);
+  if (need.length && shopTab === 'clothes') loadModels(need, () => { if (!$('metaView').hidden && $('metaCard').classList.contains('shopcard')) shopRender(); });
+}
+function shopClose() { $('metaView').hidden = true; $('metaCard').classList.remove('shopcard'); running = true; }
+// the other cards of the meta view are not the shop
+['openTasks', 'showSettings', 'openParents'].forEach(n => { if (typeof window[n] === 'function') { const f = window[n]; window[n] = function () { $('metaCard').classList.remove('shopcard'); return f.apply(this, arguments); }; } });
+{ const f = openTasks; openTasks = function () {
+  $('metaCard').classList.remove('shopcard'); f();
+  const card = $('metaCard'), s = card.querySelector('.pick.shop'); if (s) { const l = s.previousElementSibling; if (l && l.classList.contains('lbl')) l.remove(); s.remove(); }
+  const a = card.querySelector('.actions'); if (a) a.insertAdjacentHTML('beforebegin', '<button type="button" class="cta shopgo" data-shopgo="1">' + ic('shopping-cart') + ' ' + mt('shOpen') + '</button>');
+}; }
+document.querySelector('.topright').insertAdjacentHTML('afterbegin', '<button class="icon-btn" id="shopBtn" type="button" aria-label="' + mt('shOpen') + '">' + ic('shopping-cart') + '</button>');
+$('shopBtn').addEventListener('click', () => shopOpen());
+const shopBuy = (key, price) => { if (SAVE.own.indexOf(key) >= 0) return true; if (SAVE.stars < price) { tone('sine', 200, 150, 0.12, 0.04); return false; } SAVE.stars -= price; $('starN').textContent = SAVE.stars; SAVE.own.push(key); persist(); ding(); return 'new'; };
+// The click handler runs first, in the capture phase, so the older handlers of the card do not see the shop buttons.
+$('metaCard').addEventListener('click', e => {
+  if (e.target.closest('[data-shopgo]')) { e.stopImmediatePropagation(); shopOpen(); return; }
+  if (!$('metaCard').classList.contains('shopcard')) return;
+  const tab = e.target.closest('[data-tab]'), sh = e.target.closest('[data-shirt]'), hat = e.target.closest('[data-hat]'), vb = e.target.closest('[data-veh]');
+  if (tab) { e.stopImmediatePropagation(); shopTab = tab.dataset.tab; shopOpen(); return; }
+  if (sh) { e.stopImmediatePropagation(); const id = sh.dataset.shirt;
+    if (id) { const r = shopBuy('j:' + id, JS_PRICE); if (!r) return; SAVE.shirt = r === 'new' || SAVE.shirt !== id ? id : null; } else SAVE.shirt = null;
+    persist(); applyJersey(); shopRender(); return; }
+  if (hat) { e.stopImmediatePropagation(); const it = SHOP.find(s => s[0] === hat.dataset.hat), r = shopBuy(it[0], it[2]); if (!r) return;
+    SAVE.wear = r === 'new' || SAVE.wear !== it[0] ? it[0] : null; persist(); wearItem(); shopRender(); return; }
+  if (vb) { e.stopImmediatePropagation(); const s = SHOP_VEH.find(q => q[0] === vb.dataset.veh), r = shopBuy('v:' + s[0], s[3]); if (!r) return; shopRide(s[0]); return; }
+  if (e.target.closest('[data-m="close"]')) { e.stopImmediatePropagation(); shopClose(); }
+}, true);
+for (const l in L) L[l].shopN = L[l].shopN || { cap: { hr: 'Kapa', en: 'Cap', de: 'Mütze' }[l], party: { hr: 'Šešir za zabavu', en: 'Party hat', de: 'Partyhut' }[l], balloon: { hr: 'Balon', en: 'Balloon', de: 'Ballon' }[l], crown: { hr: 'Kruna', en: 'Crown', de: 'Krone' }[l], prop: { hr: 'Kapa s propelerom', en: 'Propeller cap', de: 'Propellermütze' }[l] };
+metaCss.textContent += '.shopcard{max-width:min(760px,96vw)!important}.stabs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:6px 0 10px}'
+  + '.stabs button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border-radius:16px;border:3px solid var(--line);background:#fff;font:inherit;font-weight:800;font-size:13px;color:#22313c;cursor:pointer;line-height:1.1}'
+  + '.stabs button.sel{border-color:var(--sun);background:#fff3c4;transform:translateY(-2px)}'
+  + '.sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px}.sgrid.big{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}'
+  + '.sitem{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 4px 7px;border-radius:16px;border:3px solid var(--line);background:#fff;font:inherit;color:#22313c;cursor:pointer}'
+  + '.sitem.sel{border-color:var(--sun);background:#fff3c4}.spic{display:flex;align-items:center;justify-content:center;width:72px;height:72px;border-radius:14px;background:#eef3f7}'
+  + '.sgrid.big .spic{width:120px;height:96px}.spic img{max-width:100%;max-height:100%}.spic .ic{width:40px;height:40px}'
+  + '.snm{font-size:12px;font-weight:800;text-align:center;line-height:1.1;min-height:2.2em;display:flex;align-items:center}.sitem small{font-size:13px;font-weight:800}.sitem .pr{color:#c98a00}.sitem .own{color:#2f9a5a}'
+  + '.sitem.lock .spic{filter:saturate(.85)}.shopgo{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin:10px 0}'
+  + '.ndots{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;max-width:90px;margin:0 auto 4px}.ndots i{width:12px;height:12px;border-radius:50%;background:#ff6b4a;display:block}';
 // ===== zoo animals made for this project by tools/zoo.py =====
 // kind: height in metres in the zoo. The model file has the name of the kind.
 const ZOO_OWN = { giraffe: 5.3, kangaroo: 1.9, flamingo: 1.6, parrot: 0.5, koala: 1.1, meerkat: 0.6 };
