@@ -4801,7 +4801,7 @@ function spinWheels(v, dt) { if (v.parts.mw) { v.parts.mw.forEach(w => w.rotateX
 // The steer value for a stick or key input: no turn for a small push, a soft start, and 70 % of the old turn at full input.
 function driveSteer(ix) { const a = Math.abs(ix); if (a < 0.12) return 0; return Math.sign(ix) * Math.pow((a - 0.12) / 0.88, 1.7) * 0.7; }
 function updateDriven(v, dt, ix, iy) {
-  const m = v.parts.mesh, p = m.position, towing = trailers.some(tr => tr.hitchedTo === v), max = v.max * (towing ? 0.7 : 1);
+  const m = v.parts.mesh, p = m.position, towing = trailers.some(tr => tr.hitchedTo === v), max = Math.min(v.max, DRIVE_MAX) * (towing ? 0.7 : 1);
   if (Math.abs(iy) > 0.05) { const braking = Math.sign(iy) !== Math.sign(v.speed) && Math.abs(v.speed) > 0.5; v.speed += iy * (braking ? v.acc * 2.2 : v.acc) * dt; }
   else v.speed *= Math.max(0, 1 - 1.2 * dt);
   v.speed = clamp(v.speed, -max * 0.4, max);
@@ -5115,7 +5115,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now; clock += dt;
   let ix = 0, iy = 0;
   if (running) {
-    ix = clamp(joy.x + (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0), -1, 1);
+    ix = clamp((twoSticks() ? joyR.x : joy.x) + (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0), -1, 1);
     iy = clamp(joy.y + (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0), -1, 1);
   }
   const hU = hold.up; hold.up = hold.up || (running && !!keys.Space);
@@ -8501,6 +8501,51 @@ onFrame.push(dt => {
   if (s !== kidsHint.txt) { kidsHint.txt = s; kidsHint.t = 0; h.classList.remove('fade'); }
   else if ((kidsHint.t += dt) > 6) h.classList.add('fade');
 });
+// ===== drive2: a speed limit for the vehicles on the ground, and two sticks on a touch screen while driving =====
+// The left stick gives only forward and back. The right stick gives only left and right.
+// A vehicle in the air (helicopter, plane, balloon) keeps the one stick.
+const DRIVE_MAX = 50 / 3.6;   // 50 km/h in metres per second
+const joyR = { x: 0, id: null };
+const twoSticks = () => { const v = player.inV; return !!(running && kidsTouch && v && v.kind !== 'heli' && v.kind !== 'plane'); };
+document.body.insertAdjacentHTML('beforeend', '<div id="joyR" aria-label="Joystick" hidden><div id="knobR"></div></div>');
+const joyREl = $('joyR'), knobR = $('knobR');
+// arrows that show the direction of each stick
+joyEl.insertAdjacentHTML('beforeend', '<span class="jarr ju">' + ic('arrow-fat-up') + '</span><span class="jarr jd">' + ic('arrow-fat-down') + '</span>');
+joyREl.insertAdjacentHTML('beforeend', '<span class="jarr jl">' + ic('arrow-fat-up') + '</span><span class="jarr jr">' + ic('arrow-fat-up') + '</span>');
+metaCss.textContent += '#joyR{position:fixed;z-index:5;border-radius:50%;touch-action:none}#joyR[hidden]{display:none}#knobR{position:absolute;left:50%;top:50%;border-radius:50%;pointer-events:none}'
+  + '.jarr{position:absolute;display:none;color:#fff;opacity:.9;font-size:22px;line-height:0;pointer-events:none;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))}.jarr .ic{width:22px;height:22px}'
+  + 'body.two .jarr,#joyR .jarr{display:block}.ju{left:50%;top:6px;transform:translateX(-50%)}.jd{left:50%;bottom:6px;transform:translateX(-50%)}'
+  + '.jl{top:50%;left:6px;transform:translateY(-50%) rotate(-90deg)}.jr{top:50%;right:6px;transform:translateY(-50%) rotate(90deg)}';
+// The right stick copies the look of the left stick, so it follows every screen size.
+function joyRStyle() {
+  const s = getComputedStyle(joyEl), k = getComputedStyle(knob), b = document.querySelector('.btns').getBoundingClientRect();
+  ['width', 'height', 'background', 'border', 'boxShadow', 'opacity', 'bottom'].forEach(p => { joyREl.style[p] = s[p]; });
+  joyREl.style.right = Math.round(innerWidth - b.left + 18) + 'px';
+  ['width', 'height', 'background', 'boxShadow'].forEach(p => { knobR.style[p] = k[p]; });
+  knobR.style.marginLeft = knobR.style.marginTop = '-' + parseFloat(k.width) / 2 + 'px';
+}
+function joyRMove(e) {
+  const r = joyREl.getBoundingClientRect(), max = r.width / 2 - 14;
+  const dx = clamp(e.clientX - (r.left + r.width / 2), -max, max);
+  joyR.x = dx / max; knobR.style.transform = `translate(${dx}px,0)`;
+}
+const joyRUp = e => { if (e.pointerId === joyR.id) { joyR.id = null; joyR.x = 0; knobR.style.transform = ''; } };
+joyREl.addEventListener('pointerdown', e => { joyR.id = e.pointerId; try { joyREl.setPointerCapture(e.pointerId); } catch (_) {} joyRMove(e); });
+joyREl.addEventListener('pointermove', e => { if (e.pointerId === joyR.id) joyRMove(e); });
+['pointerup', 'pointercancel'].forEach(tp => joyREl.addEventListener(tp, joyRUp));
+// While driving, the left knob moves only up and down.
+{ const f = joyMove; joyMove = function (e) {
+  f(e); const max = joyEl.getBoundingClientRect().width / 2 - 14, two = document.body.classList.contains('two');
+  // the CSS centres the knob with translate(-50%, -50%): keep that part, so the knob stays under the finger
+  knob.style.transform = `translate(calc(-50% + ${two ? 0 : joy.x * max}px), calc(-50% + ${-joy.y * max}px))`;
+}; }
+let twoWas = false;
+onFrame.push(() => {
+  const on = twoSticks(); if (on === twoWas) return; twoWas = on;
+  document.body.classList.toggle('two', on); joyREl.hidden = !on;
+  if (on) joyRStyle(); else { joyR.id = null; joyR.x = 0; knobR.style.transform = ''; }
+});
+addEventListener('resize', () => { if (twoWas) joyRStyle(); });
 // ===== zoo animals made for this project by tools/zoo.py =====
 // kind: height in metres in the zoo. The model file has the name of the kind.
 const ZOO_OWN = { giraffe: 5.3, kangaroo: 1.9, flamingo: 1.6, parrot: 0.5, koala: 1.1, meerkat: 0.6 };
