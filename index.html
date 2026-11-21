@@ -8780,7 +8780,7 @@ const SH_SVG = {
 let shopTab = 'clothes';
 function shopPrice(owned, wearing, price, ride) {
   if (!owned) return '<small class="pr">' + ic('star') + ' ' + price + '</small>';
-  return '<small class="own">' + (ride ? ic('car-profile') + ' ' + mt('shRide') : wearing ? ic('check') : '·') + '</small>';
+  return '<small class="own">' + (ride ? ic('car-profile') + ' ' + mt('shRide') : wearing ? ic('check') + ' ' + mt('shOn') : mt('shOwn')) + '</small>';
 }
 function shopTile(attr, pic, name, price, owned, wearing, ride, bg) {
   return '<button type="button" class="sitem' + (wearing ? ' sel' : '') + (owned ? '' : ' lock') + '" ' + attr + ' title="' + name + '"><span class="spic"' + (bg ? ' style="background:' + bg + '"' : '') + '>' + pic + '</span><span class="snm">' + name + '</span>' + shopPrice(owned, wearing, price, ride) + '</button>';
@@ -9054,6 +9054,93 @@ function makeJetski(col) {
   return { mesh: g, wheels: [], front: [], foam, rider: true, seatY: 0.88, seatZ: -0.45, grips: [0.3, 1.06, 0.48], pegs: [0.36, 0.52, -0.25] };
 }
 onFrame.push(() => { if (typeof jetskis === 'undefined') return; jetskis.forEach(j => { const f = j.parts.foam; if (!f) return; const s = Math.abs(j.speed); f.visible = s > 1.5; f.scale.set(1, clamp(s / 8, 0.3, 1.6), 1); f.position.z = -1.4 - 1.5 * clamp(s / 8, 0.3, 1.6); f.material.opacity = clamp(s / 14, 0.2, 0.6); }); });
+// ===== shop3: the shirts in the shop are pictures of real shirts, a preview of the shirt, a nicer shop =====
+Object.assign(MT.hr, { shMine: 'Moja majica', shFront: 'Sprijeda', shBack: 'Straga', shOwn: 'Tvoje', shOn: 'Nosiš' });
+Object.assign(MT.en, { shMine: 'My shirt', shFront: 'Front', shBack: 'Back', shOwn: 'Yours', shOn: 'On' });
+Object.assign(MT.de, { shMine: 'Mein Trikot', shFront: 'Vorne', shBack: 'Hinten', shOwn: 'Deins', shOn: 'An' });
+
+// The outline of a T-shirt in a box (x, y, w, h), seen from the front.
+function teePath(c, x, y, w, h) {
+  const P = (u, v) => [x + u * w, y + v * h];
+  c.beginPath(); c.moveTo(...P(0.37, 0.05));
+  c.quadraticCurveTo(...P(0.5, 0.19), ...P(0.63, 0.05));
+  c.lineTo(...P(0.81, 0.1)); c.lineTo(...P(0.99, 0.3)); c.lineTo(...P(0.87, 0.45)); c.lineTo(...P(0.79, 0.38));
+  c.lineTo(...P(0.8, 0.95)); c.quadraticCurveTo(...P(0.5, 0.99), ...P(0.2, 0.95));
+  c.lineTo(...P(0.21, 0.38)); c.lineTo(...P(0.13, 0.45)); c.lineTo(...P(0.01, 0.3)); c.lineTo(...P(0.19, 0.1));
+  c.closePath();
+}
+// A picture of the shirt j: side 'front' or 'back'. The back shows the name and the number. j null is a plain white shirt.
+const teeCache = {};
+function teeImage(j, side, W) {
+  W = W || 200; const H = Math.round(W * 0.95);
+  const pic = j && j[5], ready = !pic || MODELS[pic], key = (j ? j[0] : '-') + side + W + (side === 'back' ? SAVE.jname + '|' + SAVE.jnum : '');
+  if (ready && teeCache[key]) return teeCache[key];
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const c = cv.getContext('2d');
+  const m = W * 0.05, x = m, y = m, w = W - 2 * m, h = H - 2 * m;
+  c.save(); c.shadowColor = 'rgba(34,49,60,.25)'; c.shadowBlur = W * 0.04; c.shadowOffsetY = W * 0.02; teePath(c, x, y, w, h); c.fillStyle = '#fff'; c.fill(); c.restore();
+  c.save(); teePath(c, x, y, w, h); c.clip();
+  if (j) { const d = jerseyCanvas(j, side === 'back'); c.drawImage(d, side === 'back' ? JS_W / 2 : 0, 0, JS_W / 2, JS_H, x - w * 0.02, y + h * 0.04, w * 1.04, h * 0.98); }
+  else { c.fillStyle = '#f4f1ea'; c.fillRect(x, y, w, h); }
+  // light from the top left, and shade at the sides and under the sleeves
+  let g = c.createLinearGradient(x, y, x + w, y + h); g.addColorStop(0, 'rgba(255,255,255,.28)'); g.addColorStop(0.5, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,.18)'); c.fillStyle = g; c.fillRect(x, y, w, h);
+  g = c.createLinearGradient(x, 0, x + w, 0); g.addColorStop(0.18, 'rgba(0,0,0,.14)'); g.addColorStop(0.28, 'rgba(0,0,0,0)'); g.addColorStop(0.72, 'rgba(0,0,0,0)'); g.addColorStop(0.82, 'rgba(0,0,0,.14)'); c.fillStyle = g; c.fillRect(x, y, w, h);
+  c.strokeStyle = 'rgba(0,0,0,.18)'; c.lineWidth = W * 0.012;
+  c.beginPath(); c.moveTo(x + w * 0.24, y + h * 0.39); c.lineTo(x + w * 0.22, y + h * 0.6); c.moveTo(x + w * 0.76, y + h * 0.39); c.lineTo(x + w * 0.78, y + h * 0.6); c.stroke();   // seams
+  c.restore();
+  // the collar and the hems
+  c.save(); c.lineCap = 'round'; c.strokeStyle = side === 'back' ? 'rgba(34,49,60,.55)' : 'rgba(34,49,60,.7)'; c.lineWidth = W * 0.035;
+  c.beginPath(); c.moveTo(x + w * 0.38, y + h * 0.06); c.quadraticCurveTo(x + w * 0.5, y + h * (side === 'back' ? 0.1 : 0.18), x + w * 0.62, y + h * 0.06); c.stroke();
+  c.lineWidth = W * 0.012; c.strokeStyle = 'rgba(0,0,0,.25)';
+  c.beginPath(); c.moveTo(x + w * 0.05, y + h * 0.36); c.lineTo(x + w * 0.16, y + h * 0.42); c.moveTo(x + w * 0.95, y + h * 0.36); c.lineTo(x + w * 0.84, y + h * 0.42); c.stroke();
+  c.restore();
+  teePath(c, x, y, w, h); c.lineJoin = 'round'; c.strokeStyle = '#22313c'; c.lineWidth = W * 0.022; c.stroke();
+  const url = cv.toDataURL();
+  if (ready) teeCache[key] = url;
+  return url;
+}
+function teeTile(j, own) {
+  const owned = own('j:' + j[0]), wearing = SAVE.shirt === j[0];
+  return '<button type="button" class="sitem tee' + (wearing ? ' sel' : '') + (owned ? '' : ' lock') + '" data-shirt="' + j[0] + '" title="' + j[1][LANG] + '">'
+    + '<span class="spic"><img alt="" src="' + teeImage(j, 'front', 180) + '"></span><span class="snm">' + j[1][LANG] + '</span>' + shopPrice(owned, wearing, JS_PRICE, false) + '</button>';
+}
+function teePreview() {
+  const j = JERSEYS.find(q => q[0] === SAVE.shirt) || null, esc = s => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  return '<div class="jprev"><div class="jimgs"><figure><img id="jFront" alt="" src="' + teeImage(j, 'front', 240) + '"><figcaption>' + mt('shFront') + '</figcaption></figure>'
+    + '<figure><img id="jBack" alt="" src="' + teeImage(j, 'back', 240) + '"><figcaption>' + mt('shBack') + '</figcaption></figure></div>'
+    + '<div class="jside"><p class="jtitle">' + mt('shMine') + (j ? ' · ' + j[1][LANG] : '') + '</p>'
+    + '<label>' + mt('jName') + '<input id="jName" maxlength="12" autocomplete="off" value="' + esc(SAVE.jname) + '"></label>'
+    + '<label>' + mt('jNum') + '<input id="jNum" maxlength="2" inputmode="numeric" autocomplete="off" value="' + esc(SAVE.jnum) + '"></label>'
+    + '<button type="button" class="cta ghost" data-shirt="">' + mt('jNone') + '</button></div></div>';
+}
+{ const f = shopBody; shopBody = function () {
+  if (shopTab !== 'clothes') return f();
+  const own = k => SAVE.own.indexOf(k) >= 0;
+  const grp = (g, icon) => '<p class="lbl">' + icon + mt({ flag: 'shFlags', animal: 'shAnimals', dino: 'shDinos' }[g]) + '</p><div class="sgrid tees">' + JERSEYS.filter(j => jGroup(j) === g).map(j => teeTile(j, own)).join('') + '</div>';
+  const hats = SHOP.map(([k, e, c]) => shopTile('data-hat="' + k + '"', ic(e), t('shopN') && t('shopN')[k] || '', c, own(k), SAVE.wear === k, false)).join('');
+  return teePreview() + grp('flag', ic('flag-checkered')) + grp('animal', ic('paw-print')) + grp('dino', ic('bone'))
+    + '<p class="lbl">' + ic('baseball-cap') + mt('shHats') + '</p><div class="sgrid hats">' + hats + '</div>';
+}; }
+// the back picture follows the name and the number while the child types
+$('metaCard').addEventListener('input', e => {
+  if (e.target.id !== 'jName' && e.target.id !== 'jNum') return;
+  const b = $('jBack'); if (b) b.src = teeImage(JERSEYS.find(q => q[0] === SAVE.shirt) || null, 'back', 240);
+});
+metaCss.textContent += '.shopcard{background:linear-gradient(180deg,#fffaf0,#fff1d6)!important}'
+  + '.shopcard h2{display:flex;align-items:center;justify-content:space-between;gap:10px}.shopcard h2 span{display:inline-flex;align-items:center;gap:6px;background:#ffd84d;color:#22313c;border-radius:999px;padding:4px 14px;font-size:22px;box-shadow:0 3px 0 #e0b400}'
+  + '.stabs button{border:0;box-shadow:0 4px 0 rgba(34,49,60,.12);transition:transform .12s}.stabs button[data-tab="clothes"]{background:#ffe1d8}.stabs button[data-tab="wheels"]{background:#ffe9c6}.stabs button[data-tab="cars"]{background:#fff5bf}.stabs button[data-tab="fly"]{background:#dcefff}'
+  + '.stabs button.sel{outline:4px solid var(--sun);transform:translateY(-3px);box-shadow:0 7px 0 rgba(34,49,60,.15)}'
+  + '.sbody .lbl{display:flex;align-items:center;gap:6px;font-size:16px;font-weight:800;color:#22313c;margin:16px 0 8px}.sbody .lbl .ic{width:20px;height:20px;color:#ff6b4a}'
+  + '.sitem{border:0;border-radius:18px;box-shadow:0 4px 0 rgba(34,49,60,.1),0 6px 14px rgba(34,49,60,.06);position:relative;transition:transform .12s}.sitem:active{transform:scale(.96)}'
+  + '.sitem.sel{outline:4px solid var(--sun);background:#fffbe8}.sitem.sel::after{content:"";position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:#2f9a5a url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath d=%27M6 12l4 4 8-8%27 fill=%27none%27 stroke=%27white%27 stroke-width=%273.5%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E") center/16px no-repeat}'
+  + '.sitem .pr{background:#fff3c4;border-radius:999px;padding:2px 10px;color:#9a6a00}.sitem .own{background:#dff5e6;border-radius:999px;padding:2px 10px}'
+  + '.sgrid.tees{grid-template-columns:repeat(auto-fill,minmax(104px,1fr))}.sitem.tee .spic{width:96px;height:92px;background:transparent}.sitem.tee .spic img{width:96px;height:92px;object-fit:contain}'
+  + '.sitem.lock.tee .spic img{filter:saturate(.9)}'
+  + '.jprev{display:flex;flex-wrap:wrap;gap:14px;align-items:center;background:#fff;border-radius:20px;padding:12px;box-shadow:0 4px 0 rgba(34,49,60,.1)}'
+  + '.jimgs{display:flex;gap:8px}.jimgs figure{margin:0;text-align:center}.jimgs img{width:130px;height:124px;display:block}.jimgs figcaption{font-size:13px;font-weight:800;color:#5a6b78}'
+  + '.jside{display:flex;flex-direction:column;gap:8px;flex:1;min-width:180px}.jtitle{margin:0;font-weight:800;font-size:17px;color:#22313c}'
+  + '.jside label{display:flex;flex-direction:column;gap:4px;font-weight:700;font-size:13px}.jside input{font:inherit;font-size:18px;padding:8px 10px;border-radius:12px;border:2px solid var(--line);background:#fff;color:#22313c;box-sizing:border-box;max-width:220px}#jNum{max-width:90px}.jside .cta{align-self:flex-start;padding:8px 14px;font-size:15px}'
+  + '#metaCard.shopcard .actions{background:#fff1d6;box-shadow:0 -10px 14px #fff1d6;padding:10px 0 4px;margin-top:10px;z-index:2}'
+  + '@media (max-height:520px){.jimgs img{width:92px;height:88px}.jprev{padding:8px;gap:10px}.jside{gap:5px}.jside input{font-size:16px;padding:5px 8px}.stabs svg{width:32px;height:32px}.stabs button{padding:5px 4px}}';
 // ===== zoo animals made for this project by tools/zoo.py =====
 // kind: height in metres in the zoo. The model file has the name of the kind.
 const ZOO_OWN = { giraffe: 5.3, kangaroo: 1.9, flamingo: 1.6, parrot: 0.5, koala: 1.1, meerkat: 0.6 };
