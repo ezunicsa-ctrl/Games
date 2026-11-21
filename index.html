@@ -5207,6 +5207,7 @@ function frame(now) {
   coastCamClip(tgt, camera.position, 0);
   camera.lookAt(tgt.x, tgt.y + (cur && cur.kind === 'heli' ? 2 : 1.4), tgt.z);
   slideCam(cur, dt);
+  rangeCam();
   sun.position.set(tgt.x + SUN_OFF.x, SUN_OFF.y, tgt.z + SUN_OFF.z); sun.target.position.set(tgt.x, 0, tgt.z); sun.target.updateMatrixWorld();
 
   if (running) { updateHud(cur); playTime += dt; if (playTime > BREAK_AFTER) { running = false; pauseLeft = 30; $('pause').hidden = false; } }
@@ -7901,6 +7902,7 @@ function eastFrame(dt, clock) {
 }
 onFrame.push(eastFrame);
 
+worldGround({ x1: 279.5, x2: 331.5, z1: 7.5, z2: 19 });
 // ===== world: chunks are built here =====
 worldChunksBuild();
 // convert all colours to linear once, mark textures as sRGB
@@ -9141,6 +9143,204 @@ metaCss.textContent += '.shopcard{background:linear-gradient(180deg,#fffaf0,#fff
   + '.jside label{display:flex;flex-direction:column;gap:4px;font-weight:700;font-size:13px}.jside input{font:inherit;font-size:18px;padding:8px 10px;border-radius:12px;border:2px solid var(--line);background:#fff;color:#22313c;box-sizing:border-box;max-width:220px}#jNum{max-width:90px}.jside .cta{align-self:flex-start;padding:8px 14px;font-size:15px}'
   + '#metaCard.shopcard .actions{background:#fff1d6;box-shadow:0 -10px 14px #fff1d6;padding:10px 0 4px;margin-top:10px;z-index:2}'
   + '@media (max-height:520px){.jimgs img{width:92px;height:88px}.jprev{padding:8px;gap:10px}.jside{gap:5px}.jside input{font-size:16px;padding:5px 8px}.stabs svg{width:32px;height:32px}.stabs button{padding:5px 4px}}';
+// ===== range: the space foam blaster range in the inner east, between the car wash and the road =====
+// The child finds the place (the cloud of the region goes away), goes to the counter and presses Play.
+// A round lasts 30 seconds. Balloons rise in the lane; a tap on a balloon shoots a foam dart from the space blaster.
+// Each balloon gives stars; a gold balloon gives more. At the end the child can play again.
+const RANGE = { x1: 280, x2: 331, z1: 8, z2: 18.5, zc: 13.25, stand: { x: 283, z: 13.25 }, counter: 285.6, wall: 330 };
+const rangeName = { hr: 'Svemirsko strelište', en: 'Space blaster range', de: 'Weltraum-Schießstand' };
+// the ground of the range is set before the trees grow (src/patches/93-range.js)
+const rangePlace = worldPlace({ id: 'erange', x: 305, z: RANGE.zc, r: 26, icon: 'target', color: '#ff6b4a', name: rangeName });
+worldMission({ id: 'erange', n: 15, text: { hr: 'Pogodi {n} balona na strelištu', en: 'Hit {n} balloons at the blaster range', de: 'Triff {n} Ballons am Schießstand' } });
+Object.assign(MT.hr, { rgPlay: 'Igraj', rgTime: 'Vrijeme', rgHit: 'Baloni', rgEnd: 'Bravo!', rgEndX: 'Pogođeni baloni: {n}. Zvjezdice: +{s}', rgAgain: 'Igraj opet', rgOut: 'Izađi', rgHint: 'Dodirni balon da ga pogodiš!' });
+Object.assign(MT.en, { rgPlay: 'Play', rgTime: 'Time', rgHit: 'Balloons', rgEnd: 'Well done!', rgEndX: 'Balloons hit: {n}. Stars: +{s}', rgAgain: 'Play again', rgOut: 'Leave', rgHint: 'Tap a balloon to hit it!' });
+Object.assign(MT.de, { rgPlay: 'Spielen', rgTime: 'Zeit', rgHit: 'Ballons', rgEnd: 'Super!', rgEndX: 'Getroffene Ballons: {n}. Sterne: +{s}', rgAgain: 'Nochmal', rgOut: 'Raus', rgHint: 'Tipp auf einen Ballon!' });
+
+// ----- textures drawn on a canvas -----
+function rangeTex(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.anisotropy = 4; t.encoding = THREE.sRGBEncoding; return t; }
+const rangeSpace = () => rangeTex(1024, 384, (c, w, h) => {
+  const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#0b1446'); g.addColorStop(1, '#3a1d6e'); c.fillStyle = g; c.fillRect(0, 0, w, h);
+  for (let i = 0; i < 260; i++) { c.fillStyle = 'rgba(255,255,255,' + (0.4 + Math.random() * 0.6) + ')'; const r = Math.random() * 1.8 + 0.4; c.beginPath(); c.arc(Math.random() * w, Math.random() * h, r, 0, 6.3); c.fill(); }
+  const planet = (x, y, r, a, b, ring) => { const pg = c.createRadialGradient(x - r * 0.4, y - r * 0.4, r * 0.1, x, y, r); pg.addColorStop(0, a); pg.addColorStop(1, b); c.fillStyle = pg; c.beginPath(); c.arc(x, y, r, 0, 6.3); c.fill();
+    if (ring) { c.strokeStyle = 'rgba(255,220,150,.8)'; c.lineWidth = 6; c.beginPath(); c.ellipse(x, y, r * 1.7, r * 0.45, -0.3, 0, 6.3); c.stroke(); } };
+  planet(150, 120, 70, '#ffd27a', '#e0782a', true); planet(820, 90, 45, '#9fe6ff', '#2b6fd6'); planet(560, 300, 30, '#ff9ec7', '#c2367a'); planet(960, 290, 22, '#c9f27a', '#3f9a4a');
+  c.fillStyle = '#ffe066'; for (let i = 0; i < 14; i++) { const x = Math.random() * w, y = Math.random() * h, s = 6 + Math.random() * 8; c.beginPath(); for (let k = 0; k < 10; k++) { const a = k * Math.PI / 5 - Math.PI / 2, rr = k % 2 ? s * 0.45 : s; c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } c.fill(); }
+  // a small rocket
+  c.save(); c.translate(380, 150); c.rotate(-0.6); c.fillStyle = '#f4f1ea'; c.beginPath(); c.ellipse(0, 0, 18, 46, 0, 0, 6.3); c.fill(); c.fillStyle = '#e2453a'; c.beginPath(); c.moveTo(-18, 20); c.lineTo(-34, 50); c.lineTo(-10, 38); c.fill(); c.beginPath(); c.moveTo(18, 20); c.lineTo(34, 50); c.lineTo(10, 38); c.fill();
+  c.fillStyle = '#4fc3f7'; c.beginPath(); c.arc(0, -8, 9, 0, 6.3); c.fill(); c.fillStyle = '#ffa531'; c.beginPath(); c.moveTo(-10, 44); c.lineTo(0, 78); c.lineTo(10, 44); c.fill(); c.restore();
+});
+const rangeFloor = () => rangeTex(512, 128, (c, w, h) => {
+  c.fillStyle = '#5b3fa8'; c.fillRect(0, 0, w, h);
+  for (let i = 0; i < 40; i++) { c.fillStyle = ['#7a5cd6', '#ffd84d', '#4fc3f7', '#ff6b9a'][i % 4]; c.globalAlpha = 0.7; const x = Math.random() * w, y = Math.random() * h, s = 4 + Math.random() * 6; c.beginPath(); for (let k = 0; k < 10; k++) { const a = k * Math.PI / 5, rr = k % 2 ? s * 0.45 : s; c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } c.fill(); }
+  c.globalAlpha = 1; c.fillStyle = '#ffd84d'; for (let x = 0; x < w; x += 32) { c.fillRect(x, 0, 16, 6); c.fillRect(x + 16, h - 6, 16, 6); }
+});
+const rangeSign = () => rangeTex(1024, 192, (c, w, h) => {
+  const g = c.createLinearGradient(0, 0, w, 0); g.addColorStop(0, '#ff6b4a'); g.addColorStop(0.5, '#ffb22e'); g.addColorStop(1, '#ff6b4a');
+  c.fillStyle = '#22313c'; c.beginPath(); c.roundRect ? c.roundRect(0, 0, w, h, 40) : c.rect(0, 0, w, h); c.fill();
+  c.fillStyle = g; c.beginPath(); c.roundRect ? c.roundRect(10, 10, w - 20, h - 20, 32) : c.rect(10, 10, w - 20, h - 20); c.fill();
+  c.font = '800 92px "Baloo 2", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineWidth = 12; c.strokeStyle = '#22313c'; c.lineJoin = 'round';
+  const s = rangeName[LANG].toUpperCase(); c.strokeText(s, w / 2, h / 2 + 6); c.fillStyle = '#fff'; c.fillText(s, w / 2, h / 2 + 6);
+  c.fillStyle = '#fff'; for (let i = 0; i < 18; i++) { c.beginPath(); c.arc(30 + i * (w - 60) / 17, 22, 6, 0, 6.3); c.fill(); c.beginPath(); c.arc(30 + i * (w - 60) / 17, h - 22, 6, 0, 6.3); c.fill(); }
+});
+
+// ----- the space foam blaster, made in code -----
+function makeBlaster(scale) {
+  const g = new THREE.Group(), s = scale || 1;
+  const orange = new THREE.MeshPhysicalMaterial({ color: 0xff7a1f, roughness: 0.35, clearcoat: 0.8 }), blue = new THREE.MeshPhysicalMaterial({ color: 0x2b6fd6, roughness: 0.3, clearcoat: 0.8 });
+  const white = M(0xf4f1ea, 0.4), dark = M(0x23272c, 0.6), glow = new THREE.MeshStandardMaterial({ color: 0x7fe8ff, emissive: 0x3fd0ff, emissiveIntensity: 1.4, roughness: 0.2 });
+  [orange, blue].forEach(m => m.color.convertSRGBToLinear());
+  const body = ellip(0.09, 0.08, 0.26, orange, 0, 0, 0, g, 18);
+  cyl(0.035, 0.04, 0.32, white, 0, 0.02, 0.3, g, 14).rotation.x = Math.PI / 2;                       // barrel
+  [0.2, 0.3, 0.4].forEach(z => { const r = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.012, 8, 18), blue); r.position.set(0, 0.02, z); add(r, g); });
+  ellip(0.045, 0.045, 0.02, glow, 0, 0.02, 0.47, g, 12);                                              // glowing muzzle
+  box(0.03, 0.09, 0.16, blue, 0, 0.11, -0.02, g); ellip(0.04, 0.03, 0.06, glow, 0, 0.16, 0.04, g, 10);  // fin and scope
+  [-1, 1].forEach(k => { const f = box(0.12, 0.02, 0.1, blue, k * 0.1, -0.01, -0.12, g); f.rotation.z = k * 0.4; });   // side fins
+  const h = box(0.05, 0.16, 0.07, dark, 0, -0.12, -0.08, g); h.rotation.x = -0.3;                      // handle
+  const tg = new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.008, 6, 14, Math.PI), dark); tg.position.set(0, -0.07, 0.0); tg.rotation.set(0, Math.PI / 2, Math.PI); add(tg, g);
+  box(0.06, 0.08, 0.1, blue, 0, -0.08, 0.1, g);                                                       // magazine
+  for (let i = 0; i < 3; i++) cyl(0.012, 0.012, 0.06, M(0xff8a1f, 0.6), -0.015 + i * 0.015, -0.03, 0.1, g, 8);   // darts in the magazine
+  g.scale.setScalar(s);
+  return { g, body };
+}
+// a foam dart: orange foam with a blue tip
+const DART_GEO = new THREE.CylinderGeometry(0.028, 0.028, 0.22, 10), DART_TIP = new THREE.SphereGeometry(0.03, 10, 8);
+function makeDart() {
+  const g = new THREE.Group(), foam = new THREE.Mesh(DART_GEO, M(0xff8a1f, 0.8)), tip = new THREE.Mesh(DART_TIP, M(0x2b6fd6, 0.5));
+  foam.rotation.x = Math.PI / 2; tip.position.z = 0.12; g.add(foam, tip); return g;
+}
+
+// ----- the place, built in a lazy chunk -----
+chunk(305, RANGE.zc, grp => {
+  const R = RANGE, len = R.x2 - R.x1, mid = (R.x1 + R.x2) / 2;
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(len, R.z2 - R.z1), new THREE.MeshStandardMaterial({ map: rangeFloor(), roughness: 0.8 }));
+  floor.rotation.x = -Math.PI / 2; floor.position.set(mid, 0.03, R.zc); grp.add(floor);
+  // the back wall with space art
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(R.z2 - R.z1 + 1, 7), new THREE.MeshStandardMaterial({ map: rangeSpace(), roughness: 0.6, emissive: 0x221144, emissiveIntensity: 0.3 }));
+  wall.position.set(R.wall, 3.5, R.zc); wall.rotation.y = -Math.PI / 2; grp.add(wall);
+  box(0.4, 7.4, R.z2 - R.z1 + 1.4, M(0x22313c, 0.7), R.wall + 0.25, 3.7, R.zc, grp);
+  colliders.push({ minX: R.wall - 0.1, maxX: R.wall + 0.5, minZ: R.z1 - 0.5, maxZ: R.z2 + 0.5, h: 7.4 });
+  // side nets with posts and string lights
+  const net = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
+  const bulbs = [0xff6b4a, 0xffd84d, 0x4fc3f7, 0x7fe08a, 0xff6b9a].map(c => new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 1.1, roughness: 0.3 }));
+  [R.z1, R.z2].forEach(z => {
+    const n = new THREE.Mesh(new THREE.PlaneGeometry(R.wall - R.counter, 3), net); n.position.set((R.wall + R.counter) / 2, 1.5, z); grp.add(n);
+    for (let x = R.counter + 1; x <= R.wall; x += 4.4) { cyl(0.07, 0.07, 3.4, M(0xf4f1ea, 0.5), x, 1.7, z, grp, 8); }
+    for (let x = R.counter; x <= R.wall; x += 0.9) sphere(0.08, bulbs[Math.round(x) % 5], x, 3.25 + Math.sin(x * 0.7) * 0.12, z, grp, 8);
+    colliders.push({ minX: R.counter, maxX: R.wall, minZ: z - 0.25, maxZ: z + 0.25, h: 3 });
+  });
+  // the booth: counter, striped awning, posts, sign
+  const red = M(0xe2453a, 0.5), cream = M(0xfff3d6, 0.5);
+  box(0.9, 1.05, R.z2 - R.z1, M(0x2b6fd6, 0.5), R.counter, 0.525, R.zc, grp); box(1.1, 0.08, R.z2 - R.z1 + 0.2, M(0xffd84d, 0.4), R.counter, 1.09, R.zc, grp);
+  colliders.push({ minX: R.counter - 0.45, maxX: R.counter + 0.45, minZ: R.z1, maxZ: R.z2, h: 1.1 });
+  for (let i = 0; i < 9; i++) { const z = R.z1 + (i + 0.5) * (R.z2 - R.z1) / 9, a = box(2.6, 0.06, (R.z2 - R.z1) / 9, i % 2 ? red : cream, R.counter - 0.4, 3.6, z, grp); a.rotation.z = -0.25; }
+  [R.z1 + 0.15, R.z2 - 0.15].forEach(z => { cyl(0.09, 0.09, 3.7, M(0xf4f1ea, 0.4), R.counter + 0.7, 1.85, z, grp, 10); cyl(0.09, 0.09, 3.3, M(0xf4f1ea, 0.4), R.counter - 1.6, 1.65, z, grp, 10); });
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(9, 1.7), new THREE.MeshStandardMaterial({ map: rangeSign(), roughness: 0.5, emissive: 0x332200, emissiveIntensity: 0.25 }));
+  sign.position.set(R.counter - 1.75, 5.9, R.zc); sign.rotation.y = -Math.PI / 2; grp.add(sign);
+  // blasters on the counter
+  [-4.1, 4.1].forEach(dz => { const b = makeBlaster(2.2); b.g.position.set(R.counter, 1.32, R.zc + dz); b.g.rotation.y = Math.PI / 2; grp.add(b.g); });
+  // a balloon arch over the entry side and big balloons on the corners
+  const bm = [0xff6b4a, 0xffd84d, 0x4fc3f7, 0x7fe08a, 0xff6b9a, 0xa07cff].map(c => { const m = new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.2, clearcoat: 1 }); m.color.convertSRGBToLinear(); return m; });
+  for (let i = 0; i <= 16; i++) { const a = i / 16 * Math.PI, z = R.zc + Math.cos(a) * 5.2, y = 0.4 + Math.sin(a) * 4.4; ellip(0.42, 0.48, 0.42, bm[i % 6], R.counter - 2.6, y, z, grp, 14); }
+  [[R.counter - 2.6, R.z1 - 0.6], [R.counter - 2.6, R.z2 + 0.6]].forEach(([x, z]) => { for (let k = 0; k < 5; k++) { ellip(0.5, 0.58, 0.5, bm[k], x + Math.cos(k * 1.3) * 0.5, 5 + k * 0.25, z + Math.sin(k * 1.3) * 0.5, grp, 14); } cyl(0.01, 0.01, 4.6, M(0xffffff, 0.5), x, 2.6, z, grp, 4); });
+  // a rocket statue next to the booth
+  const rk = new THREE.Group(); rk.position.set(R.counter - 3.5, 0, R.z2 + 1.6); grp.add(rk);
+  cyl(0.6, 0.75, 3.2, M(0xf4f1ea, 0.35), 0, 2.1, 0, rk, 20); new THREE.Mesh(); const nose = new THREE.Mesh(new THREE.ConeGeometry(0.6, 1.3, 20), M(0xe2453a, 0.4)); nose.position.y = 4.35; add(nose, rk);
+  ellip(0.28, 0.28, 0.08, new THREE.MeshStandardMaterial({ color: 0x9fe6ff, emissive: 0x3fc8ff, emissiveIntensity: 0.6 }), 0, 2.8, 0.62, rk, 14);
+  for (let k = 0; k < 3; k++) { const f = box(0.08, 1.1, 0.8, M(0x2b6fd6, 0.4), Math.sin(k * 2.09) * 0.7, 0.75, Math.cos(k * 2.09) * 0.7, rk); f.rotation.y = k * 2.09; }
+  colliders.push({ minX: R.counter - 4.3, maxX: R.counter - 2.7, minZ: R.z2 + 0.8, maxZ: R.z2 + 2.4, h: 5 });
+  // a target spot on the floor where the child stands
+  const spot = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.85, 32), new THREE.MeshBasicMaterial({ color: 0xffd84d })); spot.rotation.x = -Math.PI / 2; spot.position.set(R.stand.x, 0.05, R.stand.z); grp.add(spot);
+});
+
+// ----- the game -----
+const SHOOT = { on: false, t: 0, hits: 0, stars: 0, balloons: [], darts: [], next: 0, blaster: null, recoil: 0, passed: false, look: new THREE.Vector3() };
+const BAL_COL = [0xff4d6d, 0xffd84d, 0x4fc3f7, 0x7fe08a, 0xff9f43, 0xa07cff];
+const balGeo = new THREE.SphereGeometry(0.5, 20, 16), knotGeo = new THREE.ConeGeometry(0.08, 0.14, 10);
+const balMats = BAL_COL.map(c => { const m = new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.15, clearcoat: 1, clearcoatRoughness: 0.1, emissive: c, emissiveIntensity: 0.12 }); m.color.convertSRGBToLinear(); m.emissive.convertSRGBToLinear(); return m; });
+const balGold = (() => { const m = new THREE.MeshPhysicalMaterial({ color: 0xffd23a, roughness: 0.15, metalness: 0.8, clearcoat: 1, emissive: 0xffa000, emissiveIntensity: 0.35 }); m.color.convertSRGBToLinear(); return m; })();
+document.body.insertAdjacentHTML('beforeend', '<button type="button" id="rangeGo" hidden></button><div id="rangeHud" hidden><span id="rgT"></span><span id="rgH"></span><button type="button" id="rgX" aria-label="X">✕</button></div>'
+  + '<div id="rangeEnd" hidden><div class="rgcard"><h3></h3><p></p><div class="rgbtn"><button type="button" class="cta" id="rgAgain"></button><button type="button" class="cta ghost" id="rgOut"></button></div></div></div>');
+metaCss.textContent += '#rangeGo{position:fixed;z-index:6;right:var(--edge-r,16px);bottom:calc(var(--edge-b,16px) + 2 * var(--b,64px) + 34px);display:flex;align-items:center;gap:8px;padding:10px 20px 10px 12px;border:0;border-radius:999px;background:#ff6b4a;color:#fff;'
+  + 'font-family:"Baloo 2",sans-serif;font-weight:800;font-size:22px;box-shadow:0 5px 0 #c94a2e,0 8px 16px rgba(0,0,0,.25);cursor:pointer;animation:slidePulse 1.4s ease-in-out infinite}#rangeGo[hidden]{display:none}#rangeGo .ic{width:30px;height:30px}'
+  + '#rangeHud{position:fixed;z-index:7;top:calc(10px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:center}#rangeHud[hidden]{display:none}'
+  + '#rangeHud span{display:flex;align-items:center;gap:6px;background:#fff;border-radius:999px;padding:6px 16px;font-family:"Baloo 2",sans-serif;font-weight:800;font-size:24px;color:#22313c;box-shadow:0 4px 0 rgba(34,49,60,.2)}#rangeHud .ic{width:24px;height:24px}'
+  + '#rgX{width:44px;height:44px;border-radius:50%;border:0;background:#22313c;color:#fff;font-size:20px;font-weight:800;cursor:pointer}'
+  + 'body.shooting #joy,body.shooting .btns,body.shooting .topright,body.shooting .hud,body.shooting #slideGo,body.shooting .kb{visibility:hidden}body.shooting canvas{cursor:crosshair}'
+  + '#rangeEnd{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;background:rgba(20,16,50,.45)}#rangeEnd[hidden]{display:none}'
+  + '.rgcard{background:linear-gradient(180deg,#fffaf0,#ffe9c2);border-radius:28px;padding:22px 26px;text-align:center;max-width:min(420px,90vw);box-shadow:0 10px 0 rgba(0,0,0,.15);font-family:"Baloo 2",sans-serif;color:#22313c}'
+  + '.rgcard h3{margin:0 0 6px;font-size:36px}.rgcard p{margin:0 0 16px;font-size:20px;font-weight:700}.rgbtn{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}';
+$('rangeGo').innerHTML = ic('target') + '<span></span>';
+const rangeNear = () => running && !player.inV && !player.ride && !player.onRide && !(typeof DR !== 'undefined' && DR.d) && !SHOOT.on && Math.hypot(player.g.position.x - RANGE.stand.x, player.g.position.z - RANGE.stand.z) < 4 && player.g.position.y < 1;
+function rangeStart() {
+  if (!camera.parent) scene.add(camera);
+  if (!SHOOT.blaster) { SHOOT.blaster = makeBlaster(0.75); SHOOT.blaster.g.position.set(0.28, -0.3, -0.62); SHOOT.blaster.g.rotation.y = Math.PI; camera.add(SHOOT.blaster.g); }
+  SHOOT.blaster.g.visible = true;
+  SHOOT.on = true; SHOOT.t = 30; SHOOT.hits = 0; SHOOT.stars = 0; SHOOT.next = 0.3; player.g.visible = false; player.vel.set(0, 0, 0);
+  document.body.classList.add('shooting'); $('rangeHud').hidden = false; $('rangeEnd').hidden = true; showCard('#target', rangeName[LANG], mt('rgHint'), 4); say(mt('rgHint'));
+}
+function rangeClear() { SHOOT.balloons.forEach(b => scene.remove(b.g)); SHOOT.balloons = []; SHOOT.darts.forEach(d => scene.remove(d.g)); SHOOT.darts = []; }
+function rangeStop(show) {
+  SHOOT.on = false; rangeClear(); if (SHOOT.blaster) SHOOT.blaster.g.visible = false;
+  $('rangeHud').hidden = true; document.body.classList.remove('shooting');
+  if (show) { running = false; const e = $('rangeEnd'); e.querySelector('h3').textContent = mt('rgEnd'); e.querySelector('p').innerHTML = icText(mt('rgEndX', { n: SHOOT.hits, s: SHOOT.stars + ' {star}' })); $('rgAgain').textContent = mt('rgAgain'); $('rgOut').textContent = mt('rgOut'); e.hidden = false; schoolBell(); burstConfetti({ x: RANGE.stand.x + 4, y: 2, z: RANGE.stand.z }, 60, 2); }
+  else rangeLeave();
+}
+function rangeLeave() { $('rangeEnd').hidden = true; running = true; player.g.visible = true; const p = player.g.position; p.set(RANGE.stand.x - 2, 0, RANGE.stand.z); player.heading = Math.PI / 2; camYaw = Math.PI / 2; }
+$('rangeGo').addEventListener('click', () => { if (!rangeNear()) return; if (SHOOT.passed) rangeStart(); else gate(() => { SHOOT.passed = true; rangeStart(); }); });
+$('rgAgain').addEventListener('click', () => { $('rangeEnd').hidden = true; running = true; rangeStart(); });
+$('rgOut').addEventListener('click', rangeLeave);
+$('rgX').addEventListener('click', () => rangeStop(SHOOT.hits > 0));
+function balloonSpawn() {
+  const gold = Math.random() < 0.12, g = new THREE.Group(), m = gold ? balGold : balMats[Math.floor(Math.random() * balMats.length)];
+  const s = new THREE.Mesh(balGeo, m); s.scale.set(1, 1.18, 1); g.add(s); const k = new THREE.Mesh(knotGeo, m); k.position.y = -0.62; k.rotation.x = Math.PI; g.add(k);
+  const str = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 1.1, 4), M(0xffffff, 0.6)); str.position.y = -1.2; g.add(str);
+  const far = RANGE.counter + 6 + Math.random() * (RANGE.wall - RANGE.counter - 9);
+  g.position.set(far, -0.5, RANGE.z1 + 1.4 + Math.random() * (RANGE.z2 - RANGE.z1 - 2.8)); g.scale.setScalar(gold ? 1.1 : 0.9 + Math.random() * 0.4); scene.add(g);
+  SHOOT.balloons.push({ g, gold, vy: 0.9 + Math.random() * 0.9 + Math.min(1, SHOOT.hits / 25), ph: Math.random() * 6.3, x0: g.position.z, alive: true });
+}
+function balloonPop(b) {
+  b.alive = false; scene.remove(b.g); SHOOT.balloons.splice(SHOOT.balloons.indexOf(b), 1);
+  burstConfetti(b.g.position, b.gold ? 50 : 24, 0.6);
+  tone('square', 900, 160, 0.09, 0.07); tone('sine', 300, 80, 0.12, 0.05);
+  const n = b.gold ? 2 : 1; SHOOT.hits++; const s0 = SAVE.stars; star(n); SHOOT.stars += SAVE.stars - s0; mbump('erange');
+}
+// A tap on the screen: the dart flies from the blaster to the tapped point; a balloon on the line is hit.
+const _rgRay = new THREE.Raycaster(), _rgV = new THREE.Vector2(), _rgO = new THREE.Vector3(), _rgD = new THREE.Vector3();
+cvs.addEventListener('pointerdown', e => {
+  if (!SHOOT.on) return;
+  const r = cvs.getBoundingClientRect(); _rgV.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  _rgRay.setFromCamera(_rgV, camera); const o = _rgRay.ray.origin, d = _rgRay.ray.direction;
+  let hit = null, ht = 60;
+  SHOOT.balloons.forEach(b => { const c = b.g.position, rr = 0.85 * b.g.scale.x; _rgO.copy(c).sub(o); const t = _rgO.dot(d); if (t < 0) return; const q = _rgO.lengthSq() - t * t; if (q < rr * rr && t < ht) { hit = b; ht = t; } });
+  const muzzle = SHOOT.blaster.g.localToWorld(new THREE.Vector3(0, 0.02, 0.5)), end = hit ? hit.g.position.clone() : o.clone().addScaledVector(d, 40);
+  const dart = makeDart(); dart.position.copy(muzzle); dart.lookAt(end); scene.add(dart);
+  SHOOT.darts.push({ g: dart, a: muzzle, b: end, t: 0, dur: Math.max(0.12, muzzle.distanceTo(end) / 45), hit });
+  SHOOT.recoil = 1; tone('triangle', 520, 220, 0.08, 0.06);
+});
+onFrame.push(dt => {
+  const go = $('rangeGo'), near = rangeNear();
+  if (near) go.querySelector('span').textContent = mt('rgPlay');
+  if (go.hidden === near) go.hidden = !near;
+  if (!SHOOT.on) return;
+  SHOOT.t -= dt; SHOOT.next -= dt;
+  if (SHOOT.next <= 0 && SHOOT.balloons.length < 9) { balloonSpawn(); SHOOT.next = 0.45 + Math.random() * 0.6; }
+  for (let i = SHOOT.balloons.length - 1; i >= 0; i--) { const b = SHOOT.balloons[i], p = b.g.position; p.y += b.vy * dt; b.ph += dt; p.z = b.x0 + Math.sin(b.ph * 1.3) * 0.35; b.g.rotation.z = Math.sin(b.ph * 1.7) * 0.15;
+    if (p.y > 7.5) { scene.remove(b.g); SHOOT.balloons.splice(i, 1); } }
+  for (let i = SHOOT.darts.length - 1; i >= 0; i--) { const d = SHOOT.darts[i]; d.t += dt; const k = Math.min(1, d.t / d.dur);
+    d.g.position.lerpVectors(d.a, d.b, k); d.g.position.y += Math.sin(k * Math.PI) * 0.15;
+    if (k >= 1) { if (d.hit && d.hit.alive) balloonPop(d.hit); scene.remove(d.g); SHOOT.darts.splice(i, 1); } }
+  SHOOT.recoil = Math.max(0, SHOOT.recoil - dt * 6);
+  $('rgT').innerHTML = ic('timer') + ' ' + Math.max(0, Math.ceil(SHOOT.t)); $('rgH').innerHTML = ic('balloon') + ' ' + SHOOT.hits;
+  if (SHOOT.t <= 0) rangeStop(true);
+});
+// The camera stands at the counter and looks down the lane; the blaster moves back a little on each shot.
+function rangeCam() {
+  if (!SHOOT.on) return;
+  const R = RANGE; player.g.position.set(R.stand.x, 0, R.stand.z); player.vel.set(0, 0, 0);
+  camera.position.set(R.counter + 0.7, 1.8, R.stand.z); SHOOT.look.set(R.wall, 2.8, R.zc); camera.lookAt(SHOOT.look);
+  const bl = SHOOT.blaster.g; bl.position.set(0.3, -0.3 + SHOOT.recoil * 0.03, -0.75 + SHOOT.recoil * 0.08); bl.rotation.set(SHOOT.recoil * 0.25, Math.PI - 0.12, 0);
+}
+{ const f = travel; travel = function (x, z, yaw) { if (SHOOT.on) rangeStop(false); return f(x, z, yaw); }; }
 // ===== zoo animals made for this project by tools/zoo.py =====
 // kind: height in metres in the zoo. The model file has the name of the kind.
 const ZOO_OWN = { giraffe: 5.3, kangaroo: 1.9, flamingo: 1.6, parrot: 0.5, koala: 1.1, meerkat: 0.6 };
